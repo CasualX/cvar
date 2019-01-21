@@ -1,9 +1,15 @@
 Configuration Variables
 =======================
 
-Configure programs through variables and actions.
+[![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![crates.io](https://img.shields.io/crates/v/cvar.svg)](https://crates.io/crates/cvar)
+[![docs.rs](https://docs.rs/cvar/badge.svg)](https://docs.rs/cvar)
+[![Build Status](https://travis-ci.org/CasualX/cvar.svg?branch=master)](https://travis-ci.org/CasualX/cvar)
 
-## Introduction
+Configure programs through stringly typed API.
+
+Introduction
+------------
 
 When an application does a particular job and exits, configuration can be loaded at startup and stored in a dedicated configuration object.
 
@@ -21,7 +27,74 @@ When an application is long-lived this may not suffice, it may want to have:
 
 * Support dynamic configuration created at runtime.
 
-## Design
+Examples
+--------
+
+For more examples on specific topics and techniques, see [the examples](examples).
+
+Try this example out locally with `cargo run --example readme-example`.
+
+```rust
+pub struct ProgramState {
+	number: i32,
+	text: String,
+}
+impl ProgramState {
+	pub fn poke(&mut self, arg: &str) {
+		self.text = format!("{}: {}", arg, self.number);
+	}
+}
+```
+
+Start by defining the state to be made interactive.
+This is ordinary Rust code, the idea is that you have some long-lived state that needs to be interactive through a stringly typed API.
+
+```rust
+impl cvar::IVisit for ProgramState {
+	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+		f(&mut cvar::Property("number", "this is a description", &mut self.number, 42));
+		f(&mut cvar::Property("text", "another description", &mut self.text, String::new()));
+		f(&mut cvar::Action("poke!", "change the state", |args, _console| self.poke(args[0])));
+	}
+}
+```
+
+The next step is to implement the `IVisit` trait.
+This trait lies at the heart of this crate's functionality.
+
+Its `visit_mut` method allows callers to discover the interactive elements of the structure.
+Call the closure with all the interactive elements wrapped in a 'node' type such as a `Property` or an `Action`.
+
+Note the ephemeral nature of the nodes, this plays very well into Rust's ownership model and avoids battles with the borrow checker as the nodes temporarily wrap around the underlying variables and methods.
+
+```rust
+let mut program_state = ProgramState {
+	number: 42,
+	text: String::new(),
+};
+```
+
+Given unique access to the program state...
+
+```rust
+assert_eq!(cvar::console::get(&mut program_state, "number").unwrap(), "42");
+
+cvar::console::set(&mut program_state, "number", "13").unwrap();
+assert_eq!(program_state.number, 13);
+```
+
+Get or set properties by their textual names and values through a console like interface.
+
+```rust
+let mut console = String::new();
+cvar::console::invoke(&mut program_state, "poke!", &["the value is"], &mut console);
+assert_eq!(program_state.text, "the value is: 13");
+```
+
+Invoke methods through actions defined in the visitor.
+
+Design
+------
 
 Configuration is the interface where a user meets and interacts with the program state. Users interact through text while programs have their preferred data types.
 
@@ -29,7 +102,7 @@ The goal of a configuration manager is to facilitate this interaction. This libr
 
 A configurable element is called a _node_. Every _node_ has some metadata such as a _name_ and a _description_. There are three types of nodes: _properties_, _lists_ and _actions_.
 
-* A _property_ stores a variable state. It has a _default value_ and an optional _change_ callback.
+* A _property_ stores a variable and has a _default value_.
 
 * A _list_ defines a hierarchy. It contains _child nodes_. Names in a hierarchy are separated by a dot, eg: `list.foo`.
 
@@ -39,29 +112,33 @@ The _nodes_ are ephemeral, this means that they don't store their metadata next 
 
 While generic implementations are provided, each node type is a trait and can have custom implementations.
 
-This library aims to be lightweight, avoid unnecessary memory allocations and unavoidable debug strings. The ephemeral nature of the metadata allows obfuscation.
-
-For technical documentation see the docs below.
-
-## Future work
+Future work
+-----------
 
 Implement autocomplete for identifiers and suggestions for property values and actions.
 
 Implement helpers for enums and enum flags support.
 
-## Usage
+Usage
+-----
 
-This crate can be found on [crates.io](https://crates.io/crates/cvar).
+This crate is available on [crates.io](https://crates.io/crates/cvar).
 
-Documentation can be found [online](https://casualx.github.io/docs/cvar-rs/0.1.0/cvar).
+Documentation is available on [docs.rs](https://docs.rs/cvar).
 
-In your `Cargo.toml`:
+In your Cargo.toml:
 
 ```
 [dependencies]
-cvar = "0.1"
+cvar = "0.2"
 ```
 
-## License
+License
+-------
 
-MIT, see LICENSE.txt
+Licensed under [MIT License](https://opensource.org/licenses/MIT), see [license.txt](license.txt).
+
+### Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, shall be licensed as above, without any additional terms or conditions.

@@ -1,18 +1,16 @@
 [package]
 name = "cvar"
-version = "0.1.0"
-authors = ["CasualX <CasualX@GitHub.com>"]
+version = "0.2.0"
+edition = "2018"
+authors = ["Casper <CasualX@users.noreply.github.com>"]
 
 description = "Configuration variables."
 
-documentation = "https://casualx.github.io/docs/cvar-rs/0.1.0/cvar"
-repository = "https://github.com/CasualX/cvar-rs"
+documentation = "https://docs.rs/cvar"
+repository = "https://github.com/CasualX/cvar"
 
 readme = "readme.md"
 
 keywords = ["config", "var", "dvar", "convar"]
 
 license = "MIT"
-
-[dev-dependencies]
-matches = "0.1"

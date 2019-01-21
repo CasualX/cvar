@@ -1,250 +1,117 @@
 /*!
-Let us use an example to see how cvars might be implemented for it.
+Configuration Variables allow humans to interactively change the state of the program.
+
+Let's use an example to see how we can make it interactive.
+The following snippet defines our program state with a user name and a method to greet the user:
 
 ```
-extern crate cvar;
-
-use ::std::cell::{Cell, RefCell};
-
-struct Foo {
-	int: Cell<i32>,
-	name: RefCell<String>,
+pub struct User {
+	name: String,
 }
-impl Foo {
-	fn greet(&self, ctx: &mut cvar::Context) -> cvar::BoxResult<()> {
-		Ok(try!(writeln!(ctx.write, "Hello, {}!", *self.name.borrow())))
+impl User {
+	pub fn greet(&self, console: &mut cvar::IConsole) {
+		let _ = writeln!(console, "Hello, {}!", self.name);
 	}
 }
 ```
 
-Important is that this library is designed with passing non-mutable references around, thus configurable variables need interior mutability.
-
-That is the basic setup, we would like to create these properties:
-
-* `foo.int`: Property representing an `i32` variable.
-
-* `foo.name`: The name used in the greeting.
-
-* `foo.greet!`: An action that will print a greeting for `foo.name`. See the [`OnInvoke`](trait.OnInvoke.html) trait for more information about its parameters.
+Implement [the `IVisit` trait](trait.IVisit.html) to make this structure available for interactivity:
 
 ```
-# use ::std::cell::{Cell, RefCell}; struct Foo { int: Cell<i32>, name: RefCell<String>, } impl Foo { fn greet(&self, ctx: &mut cvar::Context) -> cvar::BoxResult<()> { Ok(try!(writeln!(ctx.write, "Hello, {}!", *self.name.borrow()))) } }
-impl cvar::IVisit for Foo {
-	fn visit(&self, f: &mut FnMut(cvar::Node)) {
-		use cvar::{Property, Action};
-		f(From::from(&Property::new("int", "int description", &self.int, 42)));
-		f(From::from(&Property::new("name", "name description", &self.name, "Casper")));
-		f(From::from(&Action::new("greet!", "action description", |ctx| self.greet(ctx))));
+# struct User { name: String } impl User { pub fn greet(&self, console: &mut cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
+impl cvar::IVisit for User {
+	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+		f(&mut cvar::Property("name", "description", &mut self.name, String::new()));
+		f(&mut cvar::Action("greet!", "description", |_args, console| self.greet(console)));
 	}
 }
 ```
 
-Accessing children is done via the [`IVisit`](trait.IVisit.html) trait implementing the Visitor Pattern. Its implementation will invoke the callback with every child as a [`Node`](enum.Node.html).
+That's it! Create an instance of the structure to interact with:
 
 ```
-# use ::std::cell::{Cell, RefCell}; struct Foo { int: Cell<i32>, name: RefCell<String>, } impl Foo { fn greet(&self, ctx: &mut cvar::Context) -> cvar::BoxResult<()> { Ok(try!(writeln!(ctx.write, "Hello, {}!", *self.name.borrow()))) } }
-# impl cvar::IVisit for Foo { fn visit(&self, f: &mut FnMut(cvar::Node)) { use cvar::{Property, Action}; f(From::from(&Property::new("int", "int description", &self.int, 42))); f(From::from(&Property::new("name", "name description", &self.name, "Casper"))); f(From::from(&Action::new("greet!", "action description", |ctx| self.greet(ctx)))); } }
-struct Root {
-	foo: Foo,
-}
-impl cvar::IVisit for Root {
-	fn visit(&self, f: &mut FnMut(cvar::Node)) {
-		use cvar::List;
-		f(From::from(&List::new("foo", "foo description", &self.foo)));
-	}
-}
-```
-
-To access these cvars there is one thing missing: a root object from which they are reachable. Here modeled by having the root own a `Foo` instance.
-
-An important note is that the root is not a list node, it does not have any metadata it just exists as a point where the rest of the cvars are accessible from.
-
-```
-# use ::std::cell::{Cell, RefCell}; struct Foo { int: Cell<i32>, name: RefCell<String>, } impl Foo { fn greet(&self, ctx: &mut cvar::Context) -> cvar::BoxResult<()> { Ok(try!(writeln!(ctx.write, "Hello, {}!", *self.name.borrow()))) } }
-# impl cvar::IVisit for Foo { fn visit(&self, f: &mut FnMut(cvar::Node)) { use cvar::{Property, Action}; f(From::from(&Property::new("int", "int description", &self.int, 42))); f(From::from(&Property::new("name", "name description", &self.name, "Casper"))); f(From::from(&Action::new("greet!", "action description", |ctx| self.greet(ctx)))); } }
-# struct Root { foo: Foo, } impl cvar::IVisit for Root { fn visit(&self, f: &mut FnMut(cvar::Node)) { use cvar::List; f(From::from(&List::new("foo", "foo description", &self.foo))); } }
-let root = Root {
-	foo: Foo {
-		int: Cell::new(13),
-		name: RefCell::new(String::new()),
-	},
+# struct User { name: String } impl User { pub fn greet(&self, console: &mut cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
+let mut user = User {
+	name: String::new(),
 };
 ```
 
-That's it! Now we are almost ready, let us create an instance of the root.
+Given unique access, interact with the instance with a stringly typed API:
 
 ```
-# use ::std::cell::{Cell, RefCell}; struct Foo { int: Cell<i32>, name: RefCell<String>, } impl Foo { fn greet(&self, ctx: &mut cvar::Context) -> cvar::BoxResult<()> { Ok(try!(writeln!(ctx.write, "Hello, {}!", *self.name.borrow()))) } }
-# impl cvar::IVisit for Foo { fn visit(&self, f: &mut FnMut(cvar::Node)) { use cvar::{Property, Action}; f(From::from(&Property::new("int", "int description", &self.int, 42))); f(From::from(&Property::new("name", "name description", &self.name, "Casper"))); f(From::from(&Action::new("greet!", "action description", |ctx| self.greet(ctx)))); } }
-# struct Root { foo: Foo, } impl cvar::IVisit for Root { fn visit(&self, f: &mut FnMut(cvar::Node)) { use cvar::List; f(From::from(&List::new("foo", "foo description", &self.foo))); } }
-# let root = Root { foo: Foo { int: Cell::new(13), name: RefCell::new(String::new()), }, };
-assert_eq!(cvar::console::get(&root, "foo.int").unwrap(), "13");
+# struct User { name: String } impl User { pub fn greet(&self, console: &mut cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
+# impl cvar::IVisit for User { fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) { f(&mut cvar::Property("name", "description", &mut self.name, String::new())); f(&mut cvar::Action("greet!", "description", |_args, console| self.greet(console))); } }
+# let mut user = User { name: String::new() };
+// Give the user a name
+cvar::console::set(&mut user, "name", "World").unwrap();
+assert_eq!(user.name, "World");
 
-cvar::console::set(&root, "foo.int", "7").unwrap();
-assert_eq!(root.foo.int.get(), 7);
-
-cvar::console::reset(&root, "foo.name").unwrap();
-assert_eq!(*root.foo.name.borrow(), "Casper");
-
-let mut console = Vec::new();
-cvar::console::invoke(&root, "foo.greet!", &mut cvar::Context::new("-o arg", &mut console)).unwrap();
-assert_eq!(console, b"Hello, Casper!\n");
+// Greet the user, the message is printed to the console string
+let mut console = String::new();
+cvar::console::invoke(&mut user, "greet!", &[""], &mut console);
+assert_eq!(console, "Hello, World!\n");
 ```
 
-And use various console functions to interact with the resulting configuration.
+This example is extremely basic, for more complex scenarios see the examples.
+!*/
 
-See `examples/repl.rs` for a more complex example!
-*/
-
-#[cfg(test)]
-#[macro_use]
-extern crate matches;
-
-use ::std::{io, fmt};
-use ::std::str::FromStr;
-use ::std::cell::{Cell, RefCell};
-use ::std::string::ToString;
-use ::std::borrow::Borrow;
-use ::std::error::Error as StdError;
+use std::{error::Error as StdError, fmt, io, str::FromStr};
 
 pub mod console;
 
+#[cfg(test)]
+mod tests;
+
+/// Result with boxed error.
+type BoxResult<T> = Result<T, Box<StdError + Send + Sync + 'static>>;
+
 //----------------------------------------------------------------
 
-/// Identifiers are node names joined with a separator.
-///
-/// Eg. `foo.bar` is an identifier where `foo` and `bar` are names and the `.` is the separator.
-///
-/// Nodes are allowed to have the separator in their names, creating pseudo hierarchies. No implicit list nodes are created.
-///
-/// Note: The separator shall be a printable ascii character enforced by debug assert.
-pub const JOINER: u8 = b'.';
-
 /// Node interface.
+///
+/// Defines the basic requirements of a node such as having a name and a description.
 pub trait INode {
 	/// Returns the node name.
 	fn name(&self) -> &str;
 	/// Returns the node description.
 	fn description(&self) -> &str;
+	/// Downcasts to a more specific node interface.
+	fn as_node_mut(&mut self) -> NodeMut<'_>;
+	/// Upcasts back to an `INode` trait object.
+	fn as_inode_mut(&mut self) -> &mut INode;
 }
 
-/// Pass through dummy.
-///
-/// Implements default callbacks for `OnChange` and `OnInvoke`.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub struct Pass;
-
-//----------------------------------------------------------------
-
-/// Result with boxed error.
-pub type BoxResult<T> = Result<T, Box<StdError>>;
-
-/// Contextless error.
+/// Enumerates derived interfaces for downcasting.
 #[derive(Debug)]
-pub enum InnerError {
-	/// Name not found error.
-	///
-	/// When traversing the cvar hierarhcy, a child by the name was not found.
-	NameError,
-	/// Node is not a list.
-	///
-	/// When traversing the cvar hierarchy, expected the child to implement `IList`.
-	///
-	/// This happens when an id is given (eg. `foo.prop.baz`) but `foo.prop` is not a list of cvars itself.
-	ListError,
-	/// Node is not a property.
-	///
-	/// When traversing the cvar hierarchy, expected the child to implement `IProperty`.
-	///
-	/// This happens when an id is given (eg. `foo.list`) to get or set its value but `foo.list` is not a property.
-	PropError,
-	/// Node is not an action.
-	///
-	/// When traversing the cvar hierarchy, expected the child to implement `IAction`.
-	///
-	/// This happens when an id is invoked (eg. `foo.bar`) but `foo.bar` is not an action.
-	ActionError,
-	/// Error parsing the value.
-	ParseError(Box<StdError>),
-	/// Error validating the value.
-	ChangeError(Box<StdError>),
-	/// Cannot modify the cvar.
-	///
-	/// The property is read-only and cannot be modified.
-	ConstError,
-	/// Error invoking the action.
-	InvokeError(Box<StdError>),
+pub enum NodeMut<'a> {
+	Prop(&'a mut IProperty),
+	List(&'a mut IList),
+	Action(&'a mut IAction),
 }
-impl fmt::Display for InnerError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		try!(self.description().fmt(f));
-		match *self {
-			InnerError::ParseError(ref err) |
-			InnerError::ChangeError(ref err) |
-			InnerError::InvokeError(ref err) => {
-				write!(f, ": {}", err)
-			},
-			_ => Ok(()),
+impl INode for NodeMut<'_> {
+	fn name(&self) -> &str {
+		match self {
+			NodeMut::Prop(prop) => prop.name(),
+			NodeMut::List(list) => list.name(),
+			NodeMut::Action(act) => act.name(),
 		}
 	}
-}
-impl StdError for InnerError {
 	fn description(&self) -> &str {
-		match *self {
-			InnerError::NameError => "name not found",
-			InnerError::PropError => "property expected",
-			InnerError::ListError => "list expected",
-			InnerError::ActionError => "action expected",
-			InnerError::ParseError(_) => "parse error",
-			InnerError::ChangeError(_) => "change error",
-			InnerError::ConstError => "property is read-only",
-			InnerError::InvokeError(_) => "invoke error",
+		match self {
+			NodeMut::Prop(prop) => prop.description(),
+			NodeMut::List(list) => list.description(),
+			NodeMut::Action(act) => act.description(),
 		}
 	}
-	fn cause(&self) -> Option<&StdError> {
-		match *self {
-			InnerError::ParseError(ref err) |
-			InnerError::ChangeError(ref err) |
-			InnerError::InvokeError(ref err) => {
-				Some(&**err)
-			},
-			_ => None,
+	fn as_node_mut(&mut self) -> NodeMut<'_> {
+		match self {
+			NodeMut::Prop(prop) => NodeMut::Prop(*prop),
+			NodeMut::List(list) => NodeMut::List(*list),
+			NodeMut::Action(act) => NodeMut::Action(*act),
 		}
 	}
-}
-
-/// Contextual error.
-#[derive(Debug)]
-pub struct Error<'a> {
-	/// Identifier argument.
-	pub id: &'a str,
-	/// Specific node that triggered the error, this is a substring of `id`.
-	pub name: &'a str,
-	/// The actual error.
-	pub inner: InnerError,
-	_private: (),
-}
-impl<'a> Error<'a> {
-	pub fn new(id: &'a str, name: &'a str, inner: InnerError) -> Error<'a> {
-		Error {
-			id: id,
-			name: name,
-			inner: inner,
-			_private: (),
-		}
-	}
-}
-impl<'a> fmt::Display for Error<'a> {
-	fn fmt(&self, _f: &mut fmt::Formatter) -> fmt::Result {
-		unimplemented!()
-	}
-}
-impl<'a> StdError for Error<'a> {
-	fn description(&self) -> &str {
-		self.inner.description()
-	}
-	fn cause(&self) -> Option<&StdError> {
-		self.inner.cause()
+	fn as_inode_mut(&mut self) -> &mut INode {
+		self
 	}
 }
 
@@ -268,526 +135,495 @@ pub trait IProperty: INode {
 	/// Gets the value as a string.
 	fn get(&self) -> String;
 	/// Sets the value.
-	///
-	/// May fail with `InnerError::ParseError` if parsing the value yields an error.
-	///
-	/// May fail with `InnerError::ChangeError` if validating the value yields an error.
-	fn set(&self, val: &str) -> Result<(), InnerError>;
+	fn set(&mut self, val: &str) -> BoxResult<()>;
 	/// Resets the value to its default.
-	fn reset(&self);
+	///
+	/// If this operation fails (for eg. read-only properties), it does so silently.
+	fn reset(&mut self);
 	/// Gets the default value as a string.
 	fn default(&self) -> String;
 	/// Returns the state of the property.
 	fn state(&self) -> PropState;
+	/// Returns the flags associated with the property.
+	///
+	/// The meaning of this value is defined by the caller.
+	fn flags(&self) -> u32 {
+		0
+	}
+	/// Returns a list of valid value strings for this property.
+	///
+	/// None if the question is not relevant, eg. string or number nodes.
+	fn values(&self) -> Option<&[&str]> {
+		None
+	}
 }
-impl<'a> fmt::Debug for &'a IProperty {
+impl fmt::Debug for IProperty + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		f.debug_struct("Property")
+		f.debug_struct("IProperty")
 			.field("name", &self.name())
 			.field("desc", &self.description())
 			.field("value", &self.get())
 			.field("default", &self.default())
 			.field("state", &self.state())
+			.field("flags", &self.flags())
+			.field("values", &self.values())
 			.finish()
 	}
 }
-impl<'a> From<&'a IProperty> for Node<'a> {
-	fn from(prop: &'a IProperty) -> Node<'a> {
-		Node::Prop(prop)
-	}
-}
 
 //----------------------------------------------------------------
 
-/// Abstraction over interior mutability.
-pub trait Variable<T> where T: fmt::Debug {
-	/// Gets a clone of the value.
-	fn get(&self) -> T;
-	/// Sets a new value.
-	fn set(&self, val: T);
-	/// Work with the value without a potentially expensive clone.
-	fn with<R, F>(&self, f: F) -> R where F: FnOnce(&T) -> R;
+/// Property node.
+pub struct Property<'a, T> {
+	name: &'a str,
+	desc: &'a str,
+	variable: &'a mut T,
+	default: T,
 }
-impl<'a, T, V> Variable<T> for &'a V where T: fmt::Debug, V: Variable<T> {
-	fn get(&self) -> T {
-		Variable::get(*self)
-	}
-	fn set(&self, val: T) {
-		Variable::set(*self, val)
-	}
-	fn with<R, F: FnOnce(&T) -> R>(&self, f: F) -> R {
-		Variable::with(*self, f)
+#[allow(non_snake_case)]
+pub fn Property<'a, T>(name: &'a str, desc: &'a str, variable: &'a mut T, default: T) -> Property<'a, T> {
+	Property { name, desc, variable, default }
+}
+impl<'a, T> Property<'a, T> {
+	pub fn new(name: &'a str, desc: &'a str, variable: &'a mut T, default: T) -> Property<'a, T> {
+		Property { name, desc, variable, default }
 	}
 }
-impl<T> Variable<T> for Cell<T> where T: Copy + fmt::Debug {
-	fn get(&self) -> T {
-		Cell::get(self)
-	}
-	fn set(&self, val: T) {
-		Cell::set(self, val)
-	}
-	fn with<R, F>(&self, f: F) -> R where F: FnOnce(&T) -> R {
-		(f)(&Cell::get(self))
-	}
-}
-impl<T> Variable<T> for RefCell<T> where T: Clone + fmt::Debug {
-	fn get(&self) -> T {
-		self.borrow().clone()
-	}
-	fn set(&self, val: T) {
-		*self.borrow_mut() = val;
-	}
-	fn with<R, F>(&self, f: F) -> R where F: FnOnce(&T) -> R {
-		(f)(&*self.borrow())
-	}
-}
-
-//----------------------------------------------------------------
-
-/// Accepted property value types.
-///
-/// Functionality is duplicated to allow custom implementations for external types, eg. `Option<T>`.
-pub trait Value: Clone + PartialEq + fmt::Debug {
-	fn parse(val: &str) -> BoxResult<Self>;
-	fn to_string(&self) -> String;
-}
-
-/// Implement [`Value`](trait.Value.html) automatically for types that have appropriate `FromStr` and `ToString` implementations.
-pub trait AutoValue: Copy + PartialEq + FromStr + ToString + fmt::Debug
-	where Self::Err: 'static + StdError {}
-
-impl AutoValue for i8 {}
-impl AutoValue for i16 {}
-impl AutoValue for i32 {}
-impl AutoValue for i64 {}
-impl AutoValue for isize {}
-impl AutoValue for u8 {}
-impl AutoValue for u16 {}
-impl AutoValue for u32 {}
-impl AutoValue for u64 {}
-impl AutoValue for usize {}
-impl AutoValue for f32 {}
-impl AutoValue for f64 {}
-impl AutoValue for bool {}
-
-impl<T> Value for T
-	where T: AutoValue,
-	      T::Err: 'static + StdError
+impl<'a, T> INode for Property<'a, T>
+	where T: FromStr + ToString + Clone + PartialEq,
+	      T::Err: StdError + Send + Sync + 'static
 {
-	fn parse(val: &str) -> BoxResult<Self> {
-		Ok(try!(val.parse()))
-	}
-	fn to_string(&self) -> String {
-		ToString::to_string(self)
-	}
-}
-
-impl<T> Value for Option<T>
-	where T: AutoValue,
-	      T::Err: 'static + StdError
-{
-	fn parse(val: &str) -> BoxResult<Self> {
-		if val == "None" {
-			Ok(None)
-		}
-		else {
-			Ok(Some(try!(val.parse())))
-		}
-	}
-	fn to_string(&self) -> String {
-		match *self {
-			Some(ref val) => ToString::to_string(val),
-			None => String::from("None"),
-		}
-	}
-}
-
-impl Value for String {
-	fn parse(val: &str) -> BoxResult<String> {
-		Ok(String::from(val))
-	}
-	fn to_string(&self) -> String {
-		self.clone()
-	}
-}
-
-//----------------------------------------------------------------
-
-/// Property callback when its value is changed.
-pub trait OnChange<T> {
-	/// Given the old and assigned values produces the new value.
-	///
-	/// May return a validation error.
-	fn change(&self, old: &T, val: T) -> BoxResult<T>;
-}
-impl<T> OnChange<T> for Pass {
-	fn change(&self, _: &T, val: T) -> BoxResult<T> {
-		Ok(val)
-	}
-}
-impl<T, F> OnChange<T> for F where F: Fn(&T, T) -> BoxResult<T> {
-	fn change(&self, old: &T, val: T) -> BoxResult<T> {
-		(self)(old, val)
-	}
-}
-
-//----------------------------------------------------------------
-
-/// Property instance.
-///
-/// The `N`ame and `D`escription types allow abstracting over `&'static str`, `&'a str` and `String`. This supports dynamic cvars while only paying for what you need.
-///
-/// The `V`ariable type holds a [value](trait.Value.html) of the underlying `T`ype with interior mutability.
-///
-/// `F` is the callable type called when the value is changed.
-pub struct Property<N, D, T, V, F>
-	where N: Borrow<str>,
-	      D: Borrow<str>,
-	      T: Value,
-	      V: Variable<T>,
-	      F: OnChange<T>
-{
-	name: N,
-	desc: D,
-	var: V,
-	def: T,
-	change: F,
-}
-impl<N, D, T, V> Property<N, D, T, V, Pass> where N: Borrow<str>, D: Borrow<str>, T: Value, V: Variable<T> {
-	/// Creates a new `Property`.
-	///
-	/// Given a name, description, [variable](trait.Variable.html) and default.
-	///
-	/// ```
-	/// // The underlying data wrapped in a `Cell`.
-	/// use std::cell::Cell;
-	/// let var = Cell::new(13);
-	///
-	/// // The variable wrapped in a `Property`.
-	/// use cvar::{Property, IProperty};
-	/// let prop = Property::new("prop", "property description", &var, 42);
-	/// assert_eq!(prop.get(), "13");
-	/// prop.reset();
-	/// assert_eq!(var.get(), 42);
-	/// ```
-	pub fn new<I>(name: N, desc: D, var: V, def: I) -> Property<N, D, T, V, Pass> where I: Into<T> {
-		Property {
-			name: name,
-			desc: desc,
-			var: var,
-			def: def.into(),
-			change: Pass,
-		}
-	}
-}
-impl<N, D, T, V> Property<N, D, T, V, Pass> where N: Borrow<str>, D: Borrow<str>, T: Value, V: Variable<T> {
-	/// Creates a new `Property` with [change](trait.OnChange.html) callback.
-	///
-	/// Called when a new value is assigned to the property through the `set` and `reset` methods.
-	/// It does not monitor the `V`older for changes.
-	///
-	/// The default value must always validate successfully or `reset` will panic.
-	pub fn change<F>(self, change: F) -> Property<N, D, T, V, F> where F: Fn(&T, T) -> BoxResult<T> {
-		debug_assert!(self.var.with(|old| (change)(old, self.def.clone()).is_ok()), "default value did not validate");
-		Property {
-			name: self.name,
-			desc: self.desc,
-			var: self.var,
-			def: self.def,
-			change: change,
-		}
-	}
-}
-impl<N, D, T, V, F> INode for Property<N, D, T, V, F> where N: Borrow<str>, D: Borrow<str>, T: Value, V: Variable<T>, F: OnChange<T> {
 	fn name(&self) -> &str {
-		self.name.borrow()
+		self.name
 	}
 	fn description(&self) -> &str {
-		self.desc.borrow()
+		self.desc
+	}
+	fn as_node_mut(&mut self) -> NodeMut<'_> {
+		NodeMut::Prop(self)
+	}
+	fn as_inode_mut(&mut self) -> &mut INode {
+		self
 	}
 }
-impl<N, D, T, V, F> IProperty for Property<N, D, T, V, F> where N: Borrow<str>, D: Borrow<str>, T: Value, V: Variable<T>, F: OnChange<T> {
+impl<'a, T> IProperty for Property<'a, T>
+	where T: FromStr + ToString + Clone + PartialEq,
+	      T::Err: StdError + Send + Sync + 'static
+{
 	fn get(&self) -> String {
-		self.var.get().to_string()
+		self.variable.to_string()
 	}
-	fn set(&self, val: &str) -> Result<(), InnerError> {
-		match Value::parse(val) {
-			Ok(val) => {
-				match self.var.with(|old| self.change.change(old, val)) {
-					Ok(val) => self.var.set(val),
-					Err(err) => return Err(InnerError::ChangeError(err)),
-				}
-			},
-			Err(err) => return Err(InnerError::ParseError(err)),
-		};
+	fn set(&mut self, val: &str) -> BoxResult<()> {
+		*self.variable = T::from_str(val)?;
 		Ok(())
 	}
-	fn reset(&self) {
-		let val = self.var.with(|old| self.change.change(old, self.def.clone())).unwrap();
-		self.var.set(val);
+	fn reset(&mut self) {
+		self.variable.clone_from(&self.default);
 	}
 	fn default(&self) -> String {
-		self.def.to_string()
+		self.default.to_string()
 	}
 	fn state(&self) -> PropState {
-		match self.var.with(|val| val == &self.def) {
+		match *self.variable == self.default {
 			true => PropState::Default,
 			false => PropState::UserSet,
 		}
 	}
 }
-impl<'s, N, D, T, V, F> From<&'s Property<N, D, T, V, F>> for Node<'s> where N: Borrow<str>, D: Borrow<str>, T: Value, V: Variable<T>, F: OnChange<T> {
-	fn from(prop: &'s Property<N, D, T, V, F>) -> Node<'s> {
-		Node::Prop(prop)
+
+//----------------------------------------------------------------
+
+/// Property node with its value clamped.
+pub struct ClampedProp<'a, T> {
+	name: &'a str,
+	desc: &'a str,
+	variable: &'a mut T,
+	default: T,
+	min: T,
+	max: T,
+}
+#[allow(non_snake_case)]
+pub fn ClampedProp<'a, T>(name: &'a str, desc: &'a str, variable: &'a mut T, default: T, min: T, max: T) -> ClampedProp<'a, T> {
+	ClampedProp { name, desc, variable, default, min, max }
+}
+impl<'a, T> ClampedProp<'a, T> {
+	pub fn new(name: &'a str, desc: &'a str, variable: &'a mut T, default: T, min: T, max: T) -> ClampedProp<'a, T> {
+		ClampedProp { name, desc, variable, default, min, max }
+	}
+}
+impl<'a, T> INode for ClampedProp<'a, T>
+	where T: FromStr + ToString + Clone + PartialEq + PartialOrd,
+	      T::Err: StdError + Send + Sync + 'static
+{
+	fn name(&self) -> &str {
+		self.name
+	}
+	fn description(&self) -> &str {
+		self.desc
+	}
+	fn as_node_mut(&mut self) -> NodeMut<'_> {
+		NodeMut::Prop(self)
+	}
+	fn as_inode_mut(&mut self) -> &mut INode {
+		self
+	}
+}
+impl<'a, T> IProperty for ClampedProp<'a, T>
+	where T: FromStr + ToString + Clone + PartialEq + PartialOrd,
+	      T::Err: StdError + Send + Sync + 'static
+{
+	fn get(&self) -> String {
+		self.variable.to_string()
+	}
+	fn set(&mut self, val: &str) -> BoxResult<()> {
+		*self.variable = T::from_str(val)?;
+		if *self.variable < self.min {
+			self.variable.clone_from(&self.min);
+		}
+		if *self.variable > self.max {
+			self.variable.clone_from(&self.max);
+		}
+		Ok(())
+	}
+	fn reset(&mut self) {
+		self.variable.clone_from(&self.default);
+	}
+	fn default(&self) -> String {
+		self.default.to_string()
+	}
+	fn state(&self) -> PropState {
+		match *self.variable == self.default {
+			true => PropState::Default,
+			false => PropState::UserSet,
+		}
 	}
 }
 
 //----------------------------------------------------------------
 
-/// Node interface.
-#[derive(Copy, Clone)]
-pub enum Node<'a> {
-	Prop(&'a IProperty),
-	List(&'a IList),
-	Action(&'a IAction),
+/// Read-only property node.
+pub struct ReadOnlyProp<'a, T> {
+	name: &'a str,
+	desc: &'a str,
+	variable: &'a T,
+	default: T,
 }
-impl<'a> INode for Node<'a> {
+#[allow(non_snake_case)]
+pub fn ReadOnlyProp<'a, T>(name: &'a str, desc: &'a str, variable: &'a T, default: T) -> ReadOnlyProp<'a, T> {
+	ReadOnlyProp { name, desc, variable, default }
+}
+impl<'a, T> ReadOnlyProp<'a, T> {
+	pub fn new(name: &'a str, desc: &'a str, variable: &'a T, default: T) -> ReadOnlyProp<'a, T> {
+		ReadOnlyProp { name, desc, variable, default }
+	}
+}
+impl<'a, T: ToString + PartialEq> INode for ReadOnlyProp<'a, T> {
 	fn name(&self) -> &str {
-		match *self {
-			Node::Prop(prop) => prop.name(),
-			Node::List(list) => list.name(),
-			Node::Action(act) => act.name(),
-		}
+		self.name
 	}
 	fn description(&self) -> &str {
-		match *self {
-			Node::Prop(prop) => prop.description(),
-			Node::List(list) => list.description(),
-			Node::Action(act) => act.description(),
-		}
+		self.desc
+	}
+	fn as_node_mut(&mut self) -> NodeMut<'_> {
+		NodeMut::Prop(self)
+	}
+	fn as_inode_mut(&mut self) -> &mut INode {
+		self
 	}
 }
-impl<'a> fmt::Debug for Node<'a> {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		match *self {
-			Node::Prop(prop) => {
-				prop.fmt(f)
-			},
-			Node::List(list) => {
-				list.fmt(f)
-			},
-			Node::Action(act) => {
-				act.fmt(f)
-			},
+impl<'a, T: ToString + PartialEq> IProperty for ReadOnlyProp<'a, T> {
+	fn get(&self) -> String {
+		self.variable.to_string()
+	}
+	fn set(&mut self, _val: &str) -> BoxResult<()> {
+		Err("cannot set read-only property".into())
+	}
+	fn reset(&mut self) {}
+	fn default(&self) -> String {
+		self.default.to_string()
+	}
+	fn state(&self) -> PropState {
+		match *self.variable == self.default {
+			true => PropState::Default,
+			false => PropState::UserSet,
 		}
 	}
 }
 
-/// Visitor Pattern interface.
-pub trait IVisit {
-	/// Calls the callback `f` with every child casted as `Node`.
-	///
-	/// ```
-	/// use ::std::cell::Cell;
-	/// struct Object {
-	/// 	foo: Cell<i32>,
-	/// 	bar: Cell<i32>,
-	/// }
-	/// impl cvar::IVisit for Object {
-	/// 	fn visit(&self, f: &mut FnMut(cvar::Node)) {
-	/// 		use cvar::{Property};
-	/// 		f(From::from(&Property::new("foo", "foo description", &self.foo, 42)));
-	/// 		f(From::from(&Property::new("bar", "bar description", &self.bar, 12)));
-	/// 	}
-	/// }
-	/// ```
-	fn visit(&self, f: &mut FnMut(Node));
+//----------------------------------------------------------------
+
+/// Property node which owns its variable.
+pub struct OwnedProp<T> {
+	pub name: String,
+	pub variable: T,
+	pub default: T,
+	_private: (),
 }
-impl<'a> fmt::Debug for &'a IVisit {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		let mut f = f.debug_list();
-		self.visit(&mut |node| {
-			f.entry(&node);
-		});
-		f.finish()
+#[allow(non_snake_case)]
+pub fn OwnedProp<T>(name: String, variable: T, default: T) -> OwnedProp<T> {
+	OwnedProp { name, variable, default, _private: () }
+}
+impl<T> OwnedProp<T> {
+	pub fn new(name: String, variable: T, default: T) -> OwnedProp<T> {
+		OwnedProp { name, variable, default, _private: () }
+	}
+}
+impl<T> INode for OwnedProp<T>
+	where T: FromStr + ToString + Clone + PartialEq,
+	      T::Err: StdError + Send + Sync + 'static
+{
+	fn name(&self) -> &str { &self.name }
+	fn description(&self) -> &str { "" }
+	fn as_node_mut(&mut self) -> NodeMut<'_> { NodeMut::Prop(self) }
+	fn as_inode_mut(&mut self) -> &mut INode { self }
+}
+impl<T> IProperty for OwnedProp<T>
+	where T: FromStr + ToString + Clone + PartialEq,
+	      T::Err: StdError + Send + Sync + 'static
+{
+	fn get(&self) -> String {
+		self.variable.to_string()
+	}
+	fn set(&mut self, val: &str) -> BoxResult<()> {
+		self.variable = T::from_str(val)?;
+		Ok(())
+	}
+	fn reset(&mut self) {
+		self.variable.clone_from(&self.default);
+	}
+	fn default(&self) -> String {
+		self.default.to_string()
+	}
+	fn state(&self) -> PropState {
+		match self.variable == self.default {
+			true => PropState::Default,
+			false => PropState::UserSet,
+		}
 	}
 }
 
-/// List node interface.
+//----------------------------------------------------------------
+
+/// Node visitor.
 ///
-/// Provides an object safe interface for lists, type erasing its implementation.
-pub trait IList: INode {
-	/// Returns the visitor interface to access its children.
-	fn as_visit(&self) -> &IVisit;
+/// The visitor pattern is used to discover child nodes in custom types.
+///
+/// This trait is most commonly required to be implemented by users of this crate.
+///
+/// ```
+/// struct Foo {
+/// 	data: i32,
+/// }
+/// impl cvar::IVisit for Foo {
+/// 	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+/// 		// Pass type-erased properties, lists and actions to the closure
+/// 		f(&mut cvar::Property("data", "description", &mut self.data, 42));
+/// 	}
+/// }
+/// ```
+pub trait IVisit {
+	/// Visits the child nodes.
+	///
+	/// Callers may depend on the particular order in which the nodes are passed to the closure.
+	fn visit_mut(&mut self, f: &mut FnMut(&mut INode));
 }
-impl<'a> fmt::Debug for &'a IList {
+impl fmt::Debug for IVisit + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		f.debug_struct("List")
+		// Cannot visit the children as we do not have unique access to self...
+		f.write_str("IVisit { .. }")
+	}
+}
+
+/// Node visitor from closure.
+///
+/// The visitor trait `IVisit` requires a struct type to be implemented.
+/// This wrapper type allows a visitor to be created out of a closure instead.
+///
+/// ```
+/// let mut value = 0;
+///
+/// let mut visitor = cvar::VisitMut(|f| {
+/// 	f(&mut cvar::Property("value", "description", &mut value, 0));
+/// });
+///
+/// let _ = cvar::console::set(&mut visitor, "value", "42");
+/// assert_eq!(value, 42);
+/// ```
+#[derive(Copy, Clone, Debug)]
+pub struct VisitMut<F: FnMut(&mut FnMut(&mut INode))>(pub F);
+impl<F: FnMut(&mut FnMut(&mut INode))> IVisit for VisitMut<F> {
+	fn visit_mut(&mut self, f: &mut FnMut(&mut INode)) {
+		(self.0)(f)
+	}
+}
+
+//----------------------------------------------------------------
+
+/// List of child nodes.
+///
+/// An `IList` implements the node interface with its associated name and description metadata.
+///
+/// You probably want to implement [the `IVisit` trait](trait.IVisit.html) instead of this one.
+pub trait IList: INode {
+	/// Returns a visitor trait object to visit the children.
+	fn as_visit_mut(&mut self) -> &mut IVisit;
+}
+impl fmt::Debug for IList + '_ {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		f.debug_struct("IList")
 			.field("name", &self.name())
 			.field("desc", &self.description())
-			.field("children", &self.as_visit())
 			.finish()
 	}
 }
-impl<'a> From<&'a IList> for Node<'a> {
-	fn from(list: &'a IList) -> Node<'a> {
-		Node::List(list)
-	}
-}
 
 //----------------------------------------------------------------
 
-/// List instance.
-///
-/// The `N`ame and `D`escription types allow abstracting over `&'static str`, `&'a str` and `String`. This supports dynamic cvars while only paying for what you need.
-pub struct List<'a, N, D>
-	where N: Borrow<str>,
-	      D: Borrow<str>
-{
-	name: N,
-	desc: D,
-	visit: &'a IVisit,
+/// List node.
+#[derive(Debug)]
+pub struct List<'a, V> {
+	name: &'a str,
+	desc: &'a str,
+	visitor: &'a mut V,
 }
-impl<'a, N, D> List<'a, N, D> where N: Borrow<str>, D: Borrow<str> {
-	/// Creates a new `List`.
-	///
-	/// Given a name, description and [visitor](trait.IVisit.html) to access its children.
-	pub fn new(name: N, desc: D, visit: &'a IVisit) -> List<'a, N, D> {
-		List {
-			name: name,
-			desc: desc,
-			visit: visit,
-		}
+#[allow(non_snake_case)]
+pub fn List<'a, V>(name: &'a str, desc: &'a str, visitor: &'a mut V) -> List<'a, V> {
+	List { name, desc, visitor }
+}
+impl<'a, V> List<'a, V> {
+	pub fn new(name: &'a str, desc: &'a str, visitor: &'a mut V) -> List<'a, V> {
+		List { name, desc, visitor }
 	}
 }
-impl<'a, N, D> INode for List<'a, N, D> where N: Borrow<str>, D: Borrow<str> {
+impl<'a, V: IVisit> INode for List<'a, V> {
 	fn name(&self) -> &str {
-		self.name.borrow()
+		self.name
 	}
 	fn description(&self) -> &str {
-		self.desc.borrow()
+		self.desc
+	}
+	fn as_node_mut(&mut self) -> NodeMut<'_> {
+		NodeMut::List(self)
+	}
+	fn as_inode_mut(&mut self) -> &mut INode {
+		self
 	}
 }
-impl<'a, N, D> IList for List<'a, N, D> where N: Borrow<str>, D: Borrow<str> {
-	fn as_visit(&self) -> &IVisit {
-		self.visit
-	}
-}
-impl<'s, 'a, N, D> From<&'s List<'a, N, D>> for Node<'s> where N: Borrow<str>, D: Borrow<str> {
-	fn from(val: &'s List<'a, N, D>) -> Node<'s> {
-		Node::List(val)
+impl<'a, V: IVisit> IList for List<'a, V> {
+	fn as_visit_mut(&mut self) -> &mut IVisit {
+		self.visitor
 	}
 }
 
 //----------------------------------------------------------------
 
-/// Invocation context.
-///
-/// Provides a place to pass parameters through to the action callback.
-pub struct Context<'a> {
-	/// The command arguments.
-	///
-	/// There are no extra constraints on the formatting, it is passed through to the underlying action.
-	pub args: &'a str,
-	/// A console-like interface.
-	///
-	/// Allows the action to let the world know what it has to say.
-	pub write: &'a mut io::Write,
-	_private: (),
+/// Console interface for actions to write output to.
+pub trait IConsole: fmt::Write {
+	/// Notifies the console an error has occurred.
+	fn write_error(&mut self, err: &(StdError + 'static));
 }
-impl<'a> Context<'a> {
-	/// Constructs a new invocation context.
-	pub fn new(args: &'a str, write: &'a mut io::Write) -> Context<'a> {
-		Context {
-			args: args,
-			write: write,
-			_private: (),
-		}
+
+impl IConsole for String {
+	fn write_error(&mut self, err: &(StdError + 'static)) {
+		let _ = writeln!(self as &mut fmt::Write, "error: {}", err);
 	}
 }
+
+/// Null console for actions.
+///
+/// Helper which acts as `dev/null`, any writes disappear in the void.
+pub struct NullConsole;
+impl fmt::Write for NullConsole {
+	fn write_str(&mut self, _s: &str) -> fmt::Result { Ok(()) }
+	fn write_char(&mut self, _c: char) -> fmt::Result { Ok(()) }
+	fn write_fmt(&mut self, _args: fmt::Arguments) -> fmt::Result { Ok(()) }
+}
+impl IConsole for NullConsole {
+	fn write_error(&mut self, _err: &(StdError + 'static)) {}
+}
+
+/// Io console for actions.
+///
+/// Helper which adapts a console to write to any `std::io::Write` objects such as stdout.
+pub struct IoConsole<W>(pub W);
+impl<W: io::Write> fmt::Write for IoConsole<W> {
+	fn write_str(&mut self, s: &str) -> fmt::Result {
+		io::Write::write_all(&mut self.0, s.as_bytes()).map_err(|_| fmt::Error)
+	}
+	fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
+		io::Write::write_fmt(&mut self.0, args).map_err(|_| fmt::Error)
+	}
+}
+impl<W: io::Write> IConsole for IoConsole<W> {
+	fn write_error(&mut self, err: &(StdError + 'static)) {
+		let _ = writeln!(self.0, "error: {}", err);
+	}
+}
+impl IoConsole<io::Stdout> {
+	pub fn stdout() -> IoConsole<io::Stdout> {
+		IoConsole(io::stdout())
+	}
+}
+impl IoConsole<io::Stderr> {
+	pub fn stderr() -> IoConsole<io::Stderr> {
+		IoConsole(io::stderr())
+	}
+}
+
+//----------------------------------------------------------------
 
 /// Action node interface.
 ///
 /// Provides an object safe interface for actions, type erasing its implementation.
 pub trait IAction: INode {
-	/// Invoke the callback associated with the Action.
-	fn invoke(&self, ctx: &mut Context) -> Result<(), InnerError>;
+	/// Invokes the closure associated with the Action.
+	///
+	/// Given pre-tokenized arguments and a console interface to write output to.
+	fn invoke(&mut self, args: &[&str], console: &mut IConsole);
 }
-impl<'a> fmt::Debug for &'a IAction {
+impl fmt::Debug for IAction + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		f.debug_struct("Action")
+		f.debug_struct("IAction")
 			.field("name", &self.name())
 			.field("desc", &self.description())
 			.finish()
 	}
 }
-impl<'a> From<&'a IAction> for Node<'a> {
-	fn from(act: &'a IAction) -> Node<'a> {
-		Node::Action(act)
-	}
-}
-
-/// Action callback when invoked.
-pub trait OnInvoke {
-	fn invoke(&self, ctx: &mut Context) -> BoxResult<()>;
-}
-impl OnInvoke for Pass {
-	fn invoke(&self, _: &mut Context) -> BoxResult<()> {
-		Ok(())
-	}
-}
-impl<F> OnInvoke for F where F: Fn(&mut Context) -> BoxResult<()> {
-	fn invoke(&self, ctx: &mut Context) -> BoxResult<()> {
-		(self)(ctx)
-	}
-}
 
 //----------------------------------------------------------------
 
-/// Action instance.
-///
-/// The `N`ame and `D`escription types allow abstracting over `&'static str`, `&'a str` and `String`. This supports dynamic cvars while only paying for what you need.
-///
-/// `F` is the callable type called when the action is invoked.
-pub struct Action<N, D, F>
-	where N: Borrow<str>,
-	      D: Borrow<str>,
-	      F: OnInvoke
-{
-	name: N,
-	desc: D,
-	f: F,
+/// Action node.
+#[derive(Debug)]
+pub struct Action<'a, F: FnMut(&[&str], &mut IConsole)> {
+	name: &'a str,
+	desc: &'a str,
+	invoke: F,
 }
-impl<N, D> Action<N, D, Pass> where N: Borrow<str>, D: Borrow<str> {
-	/// Creates a new `Action`.
-	///
-	/// Given a name, description and a [callback](trait.OnInvoke.html) to be invoked.
-	pub fn new<F>(name: N, desc: D, f: F) -> Action<N, D, F> where F: Fn(&mut Context) -> BoxResult<()> {
-		Action {
-			name: name,
-			desc: desc,
-			f: f,
-		}
+#[allow(non_snake_case)]
+pub fn Action<'a, F: FnMut(&[&str], &mut IConsole)>(name: &'a str, desc: &'a str, invoke: F) -> Action<'a, F> {
+	Action { name, desc, invoke }
+}
+impl<'a, F: FnMut(&[&str], &mut IConsole)> Action<'a, F> {
+	pub fn new(name: &'a str, desc: &'a str, invoke: F) -> Action<'a, F> {
+		Action { name, desc, invoke }
 	}
 }
-impl<N, D, F> INode for Action<N, D, F> where N: Borrow<str>, D: Borrow<str>, F: OnInvoke {
+impl<'a, F: FnMut(&[&str], &mut IConsole)> INode for Action<'a, F> {
 	fn name(&self) -> &str {
-		self.name.borrow()
+		self.name
 	}
 	fn description(&self) -> &str {
-		self.desc.borrow()
+		self.desc
+	}
+	fn as_node_mut(&mut self) -> NodeMut<'_> {
+		NodeMut::Action(self)
+	}
+	fn as_inode_mut(&mut self) -> &mut INode {
+		self
 	}
 }
-impl<N, D, F> IAction for Action<N, D, F> where N: Borrow<str>, D: Borrow<str>, F: OnInvoke {
-	fn invoke(&self, ctx: &mut Context) -> Result<(), InnerError> {
-		match self.f.invoke(ctx) {
-			Ok(ok) => Ok(ok),
-			Err(err) => Err(InnerError::InvokeError(err)),
-		}
-	}
-}
-impl<'s, N, D, F> From<&'s Action<N, D, F>> for Node<'s> where N: Borrow<str>, D: Borrow<str>, F: OnInvoke {
-	fn from(val: &'s Action<N, D, F>) -> Node<'s> {
-		Node::Action(val)
+impl<'a, F: FnMut(&[&str], &mut IConsole)> IAction for Action<'a, F> {
+	fn invoke(&mut self, args: &[&str], console: &mut IConsole) {
+		(self.invoke)(args, console)
 	}
 }
