@@ -5,11 +5,11 @@ This example demonstrates how properties can be created and destroyed at runtime
 #[derive(Debug, Default)]
 struct RuntimeProps {
 	// Store the list of runtime properties somewhere
-	props: Vec<Box<cvar::IProperty>>,
+	props: Vec<Box<dyn cvar::IProperty>>,
 }
 impl RuntimeProps {
 	// Action to create new properties
-	fn create(&mut self, args: &[&str], console: &mut cvar::IConsole) {
+	fn create(&mut self, args: &[&str], console: &mut dyn cvar::IConsole) {
 		if args.len() != 3 {
 			let _ = writeln!(console, "Invalid arguments! expecting <type> <name> <value>");
 			return;
@@ -35,7 +35,7 @@ impl RuntimeProps {
 		}
 	}
 	// Action to remove properties
-	fn destroy(&mut self, args: &[&str], console: &mut cvar::IConsole) {
+	fn destroy(&mut self, args: &[&str], console: &mut dyn cvar::IConsole) {
 		if args.len() != 1 {
 			let _ = writeln!(console, "Invalid arguments! expecting the name of the property to remove");
 			return;
@@ -44,7 +44,7 @@ impl RuntimeProps {
 	}
 }
 impl cvar::IVisit for RuntimeProps {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Action("create!", "", |args, console| self.create(args, console)));
 		f(&mut cvar::Action("destroy!", "", |args, console| self.destroy(args, console)));
 		for prop in &mut self.props {

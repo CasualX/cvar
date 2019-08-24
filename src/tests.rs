@@ -6,12 +6,12 @@ struct Foo {
 	string: String,
 }
 impl Foo {
-	fn action(&mut self, arg: &str, console: &mut IConsole) {
+	fn action(&mut self, arg: &str, console: &mut dyn IConsole) {
 		let _ = writeln!(console, "I am {} and {}", self.string, arg);
 	}
 }
 impl IVisit for Foo {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut INode)) {
+	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode)) {
 		f(&mut Property::new("int", "int desc", &mut self.int, 42));
 		f(&mut Property::new("float", "float desc", &mut self.float, 1.2f32));
 		f(&mut Property::new("string", "string desc", &mut self.string, String::new()));
@@ -24,7 +24,7 @@ struct Root {
 	after: i32,
 }
 impl IVisit for Root {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut INode)) {
+	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode)) {
 		f(&mut Property::new("foo.before", "foo.before desc", &mut self.before, 1));
 		f(&mut List::new("foo", "foo desc", &mut self.foo));
 		f(&mut Property::new("foo.after", "foo.after desc", &mut self.after, 2));

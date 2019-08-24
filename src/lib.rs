@@ -63,7 +63,7 @@ pub mod console;
 mod tests;
 
 /// Result with boxed error.
-type BoxResult<T> = Result<T, Box<StdError + Send + Sync + 'static>>;
+type BoxResult<T> = Result<T, Box<dyn StdError + Send + Sync + 'static>>;
 
 //----------------------------------------------------------------
 
@@ -78,15 +78,15 @@ pub trait INode {
 	/// Downcasts to a more specific node interface.
 	fn as_node_mut(&mut self) -> NodeMut<'_>;
 	/// Upcasts back to an `INode` trait object.
-	fn as_inode_mut(&mut self) -> &mut INode;
+	fn as_inode_mut(&mut self) -> &mut dyn INode;
 }
 
 /// Enumerates derived interfaces for downcasting.
 #[derive(Debug)]
 pub enum NodeMut<'a> {
-	Prop(&'a mut IProperty),
-	List(&'a mut IList),
-	Action(&'a mut IAction),
+	Prop(&'a mut dyn IProperty),
+	List(&'a mut dyn IList),
+	Action(&'a mut dyn IAction),
 }
 impl INode for NodeMut<'_> {
 	fn name(&self) -> &str {
@@ -110,7 +110,7 @@ impl INode for NodeMut<'_> {
 			NodeMut::Action(act) => NodeMut::Action(*act),
 		}
 	}
-	fn as_inode_mut(&mut self) -> &mut INode {
+	fn as_inode_mut(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -157,7 +157,7 @@ pub trait IProperty: INode {
 		None
 	}
 }
-impl fmt::Debug for IProperty + '_ {
+impl fmt::Debug for dyn IProperty + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		f.debug_struct("IProperty")
 			.field("name", &self.name())
@@ -202,7 +202,7 @@ impl<'a, T> INode for Property<'a, T>
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Prop(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut INode {
+	fn as_inode_mut(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -264,7 +264,7 @@ impl<'a, T> INode for ClampedProp<'a, T>
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Prop(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut INode {
+	fn as_inode_mut(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -327,7 +327,7 @@ impl<'a, T: ToString + PartialEq> INode for ReadOnlyProp<'a, T> {
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Prop(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut INode {
+	fn as_inode_mut(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -375,7 +375,7 @@ impl<T> INode for OwnedProp<T>
 	fn name(&self) -> &str { &self.name }
 	fn description(&self) -> &str { "" }
 	fn as_node_mut(&mut self) -> NodeMut<'_> { NodeMut::Prop(self) }
-	fn as_inode_mut(&mut self) -> &mut INode { self }
+	fn as_inode_mut(&mut self) -> &mut dyn INode { self }
 }
 impl<T> IProperty for OwnedProp<T>
 	where T: FromStr + ToString + Clone + PartialEq,
@@ -425,9 +425,9 @@ pub trait IVisit {
 	/// Visits the child nodes.
 	///
 	/// Callers may depend on the particular order in which the nodes are passed to the closure.
-	fn visit_mut(&mut self, f: &mut FnMut(&mut INode));
+	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode));
 }
-impl fmt::Debug for IVisit + '_ {
+impl fmt::Debug for dyn IVisit + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		// Cannot visit the children as we do not have unique access to self...
 		f.write_str("IVisit { .. }")
@@ -450,9 +450,9 @@ impl fmt::Debug for IVisit + '_ {
 /// assert_eq!(value, 42);
 /// ```
 #[derive(Copy, Clone, Debug)]
-pub struct VisitMut<F: FnMut(&mut FnMut(&mut INode))>(pub F);
-impl<F: FnMut(&mut FnMut(&mut INode))> IVisit for VisitMut<F> {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut INode)) {
+pub struct VisitMut<F: FnMut(&mut dyn FnMut(&mut dyn INode))>(pub F);
+impl<F: FnMut(&mut dyn FnMut(&mut dyn INode))> IVisit for VisitMut<F> {
+	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode)) {
 		(self.0)(f)
 	}
 }
@@ -466,9 +466,9 @@ impl<F: FnMut(&mut FnMut(&mut INode))> IVisit for VisitMut<F> {
 /// You probably want to implement [the `IVisit` trait](trait.IVisit.html) instead of this one.
 pub trait IList: INode {
 	/// Returns a visitor trait object to visit the children.
-	fn as_visit_mut(&mut self) -> &mut IVisit;
+	fn as_visit_mut(&mut self) -> &mut dyn IVisit;
 }
-impl fmt::Debug for IList + '_ {
+impl fmt::Debug for dyn IList + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		f.debug_struct("IList")
 			.field("name", &self.name())
@@ -505,12 +505,12 @@ impl<'a, V: IVisit> INode for List<'a, V> {
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::List(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut INode {
+	fn as_inode_mut(&mut self) -> &mut dyn INode {
 		self
 	}
 }
 impl<'a, V: IVisit> IList for List<'a, V> {
-	fn as_visit_mut(&mut self) -> &mut IVisit {
+	fn as_visit_mut(&mut self) -> &mut dyn IVisit {
 		self.visitor
 	}
 }
@@ -520,12 +520,12 @@ impl<'a, V: IVisit> IList for List<'a, V> {
 /// Console interface for actions to write output to.
 pub trait IConsole: fmt::Write {
 	/// Notifies the console an error has occurred.
-	fn write_error(&mut self, err: &(StdError + 'static));
+	fn write_error(&mut self, err: &(dyn StdError + 'static));
 }
 
 impl IConsole for String {
-	fn write_error(&mut self, err: &(StdError + 'static)) {
-		let _ = writeln!(self as &mut fmt::Write, "error: {}", err);
+	fn write_error(&mut self, err: &(dyn StdError + 'static)) {
+		let _ = writeln!(self as &mut dyn fmt::Write, "error: {}", err);
 	}
 }
 
@@ -539,7 +539,7 @@ impl fmt::Write for NullConsole {
 	fn write_fmt(&mut self, _args: fmt::Arguments) -> fmt::Result { Ok(()) }
 }
 impl IConsole for NullConsole {
-	fn write_error(&mut self, _err: &(StdError + 'static)) {}
+	fn write_error(&mut self, _err: &(dyn StdError + 'static)) {}
 }
 
 /// Io console for actions.
@@ -555,7 +555,7 @@ impl<W: io::Write> fmt::Write for IoConsole<W> {
 	}
 }
 impl<W: io::Write> IConsole for IoConsole<W> {
-	fn write_error(&mut self, err: &(StdError + 'static)) {
+	fn write_error(&mut self, err: &(dyn StdError + 'static)) {
 		let _ = writeln!(self.0, "error: {}", err);
 	}
 }
@@ -579,9 +579,9 @@ pub trait IAction: INode {
 	/// Invokes the closure associated with the Action.
 	///
 	/// Given pre-tokenized arguments and a console interface to write output to.
-	fn invoke(&mut self, args: &[&str], console: &mut IConsole);
+	fn invoke(&mut self, args: &[&str], console: &mut dyn IConsole);
 }
-impl fmt::Debug for IAction + '_ {
+impl fmt::Debug for dyn IAction + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		f.debug_struct("IAction")
 			.field("name", &self.name())
@@ -594,21 +594,21 @@ impl fmt::Debug for IAction + '_ {
 
 /// Action node.
 #[derive(Debug)]
-pub struct Action<'a, F: FnMut(&[&str], &mut IConsole)> {
+pub struct Action<'a, F: FnMut(&[&str], &mut dyn IConsole)> {
 	name: &'a str,
 	desc: &'a str,
 	invoke: F,
 }
 #[allow(non_snake_case)]
-pub fn Action<'a, F: FnMut(&[&str], &mut IConsole)>(name: &'a str, desc: &'a str, invoke: F) -> Action<'a, F> {
+pub fn Action<'a, F: FnMut(&[&str], &mut dyn IConsole)>(name: &'a str, desc: &'a str, invoke: F) -> Action<'a, F> {
 	Action { name, desc, invoke }
 }
-impl<'a, F: FnMut(&[&str], &mut IConsole)> Action<'a, F> {
+impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> Action<'a, F> {
 	pub fn new(name: &'a str, desc: &'a str, invoke: F) -> Action<'a, F> {
 		Action { name, desc, invoke }
 	}
 }
-impl<'a, F: FnMut(&[&str], &mut IConsole)> INode for Action<'a, F> {
+impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> INode for Action<'a, F> {
 	fn name(&self) -> &str {
 		self.name
 	}
@@ -618,12 +618,12 @@ impl<'a, F: FnMut(&[&str], &mut IConsole)> INode for Action<'a, F> {
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Action(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut INode {
+	fn as_inode_mut(&mut self) -> &mut dyn INode {
 		self
 	}
 }
-impl<'a, F: FnMut(&[&str], &mut IConsole)> IAction for Action<'a, F> {
-	fn invoke(&mut self, args: &[&str], console: &mut IConsole) {
+impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> IAction for Action<'a, F> {
+	fn invoke(&mut self, args: &[&str], console: &mut dyn IConsole) {
 		(self.invoke)(args, console)
 	}
 }

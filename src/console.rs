@@ -12,7 +12,7 @@ use super::*;
 
 /// Sets a property its value.
 #[inline]
-pub fn set(root: &mut IVisit, path: &str, val: &str) -> BoxResult<bool> {
+pub fn set(root: &mut dyn IVisit, path: &str, val: &str) -> BoxResult<bool> {
 	let mut result = Ok(false);
 	find(root, path, |node| {
 		if let NodeMut::Prop(prop) = node.as_node_mut() {
@@ -24,7 +24,7 @@ pub fn set(root: &mut IVisit, path: &str, val: &str) -> BoxResult<bool> {
 
 /// Gets a property its value.
 #[inline]
-pub fn get(root: &mut IVisit, path: &str) -> Option<String> {
+pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 	let mut result = None;
 	find(root, path, |node| {
 		if let NodeMut::Prop(prop) = node.as_node_mut() {
@@ -37,7 +37,7 @@ pub fn get(root: &mut IVisit, path: &str) -> Option<String> {
 /// Resets properties to their default.
 ///
 /// Given a list node will reset all its children to their default. Ignores action nodes.
-pub fn reset(root: &mut IVisit, path: &str) -> bool {
+pub fn reset(root: &mut dyn IVisit, path: &str) -> bool {
 	find(root, path, |node| {
 		match node.as_node_mut() {
 			NodeMut::Prop(prop) => prop.reset(),
@@ -47,7 +47,7 @@ pub fn reset(root: &mut IVisit, path: &str) -> bool {
 	})
 }
 /// Resets all properties to their default.
-pub fn reset_all(root: &mut IVisit) {
+pub fn reset_all(root: &mut dyn IVisit) {
 	root.visit_mut(&mut |node| {
 		match node.as_node_mut() {
 			NodeMut::Prop(prop) => prop.reset(),
@@ -122,10 +122,10 @@ fn test_compare_id() {
 ///
 /// Returns false if no nodes were found with this path, the closure has not been called.
 #[inline]
-pub fn find<F: FnMut(&mut INode)>(root: &mut IVisit, path: &str, mut f: F) -> bool {
+pub fn find<F: FnMut(&mut dyn INode)>(root: &mut dyn IVisit, path: &str, mut f: F) -> bool {
 	find_rec(root, path, &mut f)
 }
-fn find_rec(list: &mut IVisit, path: &str, f: &mut FnMut(&mut INode)) -> bool {
+fn find_rec(list: &mut dyn IVisit, path: &str, f: &mut dyn FnMut(&mut dyn INode)) -> bool {
 	let mut found = false;
 	list.visit_mut(&mut |node| {
 		match ComparePath::cmp(path, node.name()) {
@@ -146,11 +146,11 @@ fn find_rec(list: &mut IVisit, path: &str, f: &mut FnMut(&mut INode)) -> bool {
 
 /// Walks all nodes in the cvar hierarchy and call the closure with the node along its full path.
 #[inline]
-pub fn walk<F: FnMut(&str, &mut INode)>(root: &mut IVisit, mut f: F) {
+pub fn walk<F: FnMut(&str, &mut dyn INode)>(root: &mut dyn IVisit, mut f: F) {
 	let mut path = String::new();
 	walk_rec(root, &mut path, &mut f);
 }
-fn walk_rec(list: &mut IVisit, path: &mut String, f: &mut FnMut(&str, &mut INode)) {
+fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &mut dyn INode)) {
 	list.visit_mut(&mut |node| {
 		// Construct the path
 		let len = path.len();
@@ -173,7 +173,7 @@ fn walk_rec(list: &mut IVisit, path: &mut String, f: &mut FnMut(&str, &mut INode
 
 /// Invokes an action.
 #[inline]
-pub fn invoke(root: &mut IVisit, path: &str, args: &[&str], console: &mut IConsole) -> bool {
+pub fn invoke(root: &mut dyn IVisit, path: &str, args: &[&str], console: &mut dyn IConsole) -> bool {
 	let mut found = false;
 	find(root, path, |node| {
 		if let NodeMut::Action(act) = node.as_node_mut() {

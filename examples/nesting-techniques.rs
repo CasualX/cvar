@@ -11,17 +11,17 @@ struct Foo {
 // Demonstrate how to create pseudo 'on change' callbacks by aliasing the properties as actions
 // Specify before or after on change by changing the order in which they are listed to the visitor
 impl Foo {
-	fn before_int_changed(&mut self, _args: &[&str], console: &mut cvar::IConsole) {
+	fn before_int_changed(&mut self, _args: &[&str], console: &mut dyn cvar::IConsole) {
 		self.string = self.int.to_string();
 		let _ = writeln!(console, "Before int has changed!");
 	}
-	fn after_float_changed(&mut self, _args: &[&str], console: &mut cvar::IConsole) {
+	fn after_float_changed(&mut self, _args: &[&str], console: &mut dyn cvar::IConsole) {
 		self.string = self.float.to_string();
 		let _ = writeln!(console, "After float has changed!");
 	}
 }
 impl cvar::IVisit for Foo {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Action("int", "", |args, console| self.before_int_changed(args, console)));
 		f(&mut cvar::Property("int", "", &mut self.int, 0));
 		f(&mut cvar::Property("float", "", &mut self.float, 0.0));
@@ -38,7 +38,7 @@ struct Nested {
 	foo: Foo,
 }
 impl cvar::IVisit for Nested {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Property("foo.bool", "", &mut self.boolean, false));
 		f(&mut cvar::List("foo", "", &mut self.foo));
 	}
