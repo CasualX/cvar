@@ -14,3 +14,6 @@ readme = "readme.md"
 keywords = ["config", "var", "dvar", "convar"]
 
 license = "MIT"
+
+[features]
+type_name = []

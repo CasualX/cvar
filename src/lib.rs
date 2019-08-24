@@ -150,6 +150,11 @@ pub trait IProperty: INode {
 	fn flags(&self) -> u32 {
 		0
 	}
+	/// Returns the name of this concrete type.
+	#[cfg(feature = "type_name")]
+	fn type_name(&self) -> &str {
+		std::any::type_name::<Self>()
+	}
 	/// Returns a list of valid value strings for this property.
 	///
 	/// None if the question is not relevant, eg. string or number nodes.
@@ -159,15 +164,17 @@ pub trait IProperty: INode {
 }
 impl fmt::Debug for dyn IProperty + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		f.debug_struct("IProperty")
-			.field("name", &self.name())
-			.field("desc", &self.description())
-			.field("value", &self.get())
-			.field("default", &self.default())
-			.field("state", &self.state())
-			.field("flags", &self.flags())
-			.field("values", &self.values())
-			.finish()
+		let mut debug = f.debug_struct("IProperty");
+		debug.field("name", &self.name());
+		debug.field("desc", &self.description());
+		debug.field("value", &self.get());
+		debug.field("default", &self.default());
+		debug.field("state", &self.state());
+		debug.field("flags", &self.flags());
+		#[cfg(feature = "type_name")]
+		debug.field("type", &self.type_name());
+		debug.field("values", &self.values());
+		debug.finish()
 	}
 }
 
