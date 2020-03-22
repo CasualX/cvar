@@ -9,7 +9,7 @@ pub struct User {
 	name: String,
 }
 impl User {
-	pub fn greet(&self, console: &mut cvar::IConsole) {
+	pub fn greet(&self, console: &mut dyn cvar::IConsole) {
 		let _ = writeln!(console, "Hello, {}!", self.name);
 	}
 }
@@ -18,11 +18,11 @@ impl User {
 Implement [the `IVisit` trait](trait.IVisit.html) to make this structure available for interactivity:
 
 ```
-# struct User { name: String } impl User { pub fn greet(&self, console: &mut cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
+# struct User { name: String } impl User { pub fn greet(&self, console: &mut dyn cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
 impl cvar::IVisit for User {
 	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
-		f(&mut cvar::Property("name", "description", &mut self.name, String::new()));
-		f(&mut cvar::Action("greet!", "description", |_args, console| self.greet(console)));
+		f(&mut cvar::Property("name", &mut self.name, String::new()));
+		f(&mut cvar::Action("greet!", |_args, console| self.greet(console)));
 	}
 }
 ```
@@ -30,7 +30,7 @@ impl cvar::IVisit for User {
 That's it! Create an instance of the structure to interact with:
 
 ```
-# struct User { name: String } impl User { pub fn greet(&self, console: &mut cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
+# struct User { name: String } impl User { pub fn greet(&self, console: &mut dyn cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
 let mut user = User {
 	name: String::new(),
 };
@@ -39,8 +39,8 @@ let mut user = User {
 Given unique access, interact with the instance with a stringly typed API:
 
 ```
-# struct User { name: String } impl User { pub fn greet(&self, console: &mut cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
-# impl cvar::IVisit for User { fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) { f(&mut cvar::Property("name", "description", &mut self.name, String::new())); f(&mut cvar::Action("greet!", "description", |_args, console| self.greet(console))); } }
+# struct User { name: String } impl User { pub fn greet(&self, console: &mut dyn cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
+# impl cvar::IVisit for User { fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) { f(&mut cvar::Property("name", &mut self.name, String::new())); f(&mut cvar::Action("greet!", |_args, console| self.greet(console))); } }
 # let mut user = User { name: String::new() };
 // Give the user a name
 cvar::console::set(&mut user, "name", "World").unwrap();
@@ -48,7 +48,7 @@ assert_eq!(user.name, "World");
 
 // Greet the user, the message is printed to the console string
 let mut console = String::new();
-cvar::console::invoke(&mut user, "greet!", &[""], &mut console);
+cvar::console::invoke(&mut user, "greet!", "", &mut console);
 assert_eq!(console, "Hello, World!\n");
 ```
 
@@ -553,8 +553,8 @@ impl IoConsole<io::Stderr> {
 pub trait IAction: INode {
 	/// Invokes the closure associated with the Action.
 	///
-	/// Given pre-tokenized arguments and a console interface to write output to.
-	fn invoke(&mut self, args: &[&str], console: &mut dyn IConsole);
+	/// Given argument string and a console interface to write output to.
+	fn invoke(&mut self, args: &str, console: &mut dyn IConsole);
 }
 impl fmt::Debug for dyn IAction + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -568,20 +568,20 @@ impl fmt::Debug for dyn IAction + '_ {
 
 /// Action node.
 #[derive(Debug)]
-pub struct Action<'a, F: FnMut(&[&str], &mut dyn IConsole)> {
+pub struct Action<'a, F: FnMut(&str, &mut dyn IConsole)> {
 	name: &'a str,
 	invoke: F,
 }
 #[allow(non_snake_case)]
-pub fn Action<'a, F: FnMut(&[&str], &mut dyn IConsole)>(name: &'a str, invoke: F) -> Action<'a, F> {
+pub fn Action<'a, F: FnMut(&str, &mut dyn IConsole)>(name: &'a str, invoke: F) -> Action<'a, F> {
 	Action { name, invoke }
 }
-impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> Action<'a, F> {
+impl<'a, F: FnMut(&str, &mut dyn IConsole)> Action<'a, F> {
 	pub fn new(name: &'a str, invoke: F) -> Action<'a, F> {
 		Action { name, invoke }
 	}
 }
-impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> INode for Action<'a, F> {
+impl<'a, F: FnMut(&str, &mut dyn IConsole)> INode for Action<'a, F> {
 	fn name(&self) -> &str {
 		self.name
 	}
@@ -592,8 +592,8 @@ impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> INode for Action<'a, F> {
 		self
 	}
 }
-impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> IAction for Action<'a, F> {
-	fn invoke(&mut self, args: &[&str], console: &mut dyn IConsole) {
+impl<'a, F: FnMut(&str, &mut dyn IConsole)> IAction for Action<'a, F> {
+	fn invoke(&mut self, args: &str, console: &mut dyn IConsole) {
 		(self.invoke)(args, console)
 	}
 }

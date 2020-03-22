@@ -173,7 +173,7 @@ fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &m
 
 /// Invokes an action.
 #[inline]
-pub fn invoke(root: &mut dyn IVisit, path: &str, args: &[&str], console: &mut dyn IConsole) -> bool {
+pub fn invoke(root: &mut dyn IVisit, path: &str, args: &str, console: &mut dyn IConsole) -> bool {
 	let mut found = false;
 	find(root, path, |node| {
 		if let NodeMut::Action(act) = node.as_node_mut() {

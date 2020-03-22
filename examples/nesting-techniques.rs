@@ -11,11 +11,11 @@ struct Foo {
 // Demonstrate how to create pseudo 'on change' callbacks by aliasing the properties as actions
 // Specify before or after on change by changing the order in which they are listed to the visitor
 impl Foo {
-	fn before_int_changed(&mut self, _args: &[&str], console: &mut dyn cvar::IConsole) {
+	fn before_int_changed(&mut self, _args: &str, console: &mut dyn cvar::IConsole) {
 		self.string = self.int.to_string();
 		let _ = writeln!(console, "Before int has changed!");
 	}
-	fn after_float_changed(&mut self, _args: &[&str], console: &mut dyn cvar::IConsole) {
+	fn after_float_changed(&mut self, _args: &str, console: &mut dyn cvar::IConsole) {
 		self.string = self.float.to_string();
 		let _ = writeln!(console, "After float has changed!");
 	}
@@ -64,48 +64,48 @@ fn main() {
 		}
 
 		// Crude command line parsing
-		let args: Vec<&str> = line.split_whitespace().collect();
-
-		// Print the tree of props if empty
-		if args.is_empty() {
-			cvar::console::walk(&mut nested, |path, node| {
-				match node.as_node_mut() {
-					cvar::NodeMut::Prop(prop) => {
-						println!("{} `{}`", path, prop.get());
-					},
-					cvar::NodeMut::List(_list) => (),
-					cvar::NodeMut::Action(_act) => {
-						println!("{}", path);
-					},
-				}
-			});
-			continue;
-		}
-
-		// Find the node the user wants to interact with
-		let path = args[0];
-		let args = &args[1..];
-		if !cvar::console::find(&mut nested, path, |node| {
-			match node.as_node_mut() {
-				cvar::NodeMut::Prop(prop) => {
-					// If we passed any arguments, try to set the value
-					if args.len() >= 1 {
-						if let Err(err) = prop.set(args[0]) {
-							println!("Cannot parse `{}`: {}.", args[0], err);
-						}
+		let line = line.trim();
+		match line.split_ascii_whitespace().next() {
+			// Find the node the user wants to interact with
+			Some(path) => {
+				let args = line[path.len()..].trim_start();
+				if !cvar::console::find(&mut nested, path, |node| {
+					match node.as_node_mut() {
+						cvar::NodeMut::Prop(prop) => {
+							// If we passed any arguments, try to set the value
+							if args.len() > 0 {
+								if let Err(err) = prop.set(args) {
+									println!("Cannot parse `{}`: {}.", args, err);
+								}
+							}
+							// In any case print the value the prop currently has
+							println!("{} `{}`", path, prop.get());
+						},
+						cvar::NodeMut::Action(act) => {
+							// Redirect to stdout
+							let mut console = cvar::IoConsole::stdout();
+							act.invoke(args, &mut console);
+						},
+						cvar::NodeMut::List(_) => {},
 					}
-					// In any case print the value the prop currently has
-					println!("{} `{}`", path, prop.get());
-				},
-				cvar::NodeMut::Action(act) => {
-					// Redirect to stdout
-					let mut console = cvar::IoConsole::stdout();
-					act.invoke(args, &mut console);
-				},
-				cvar::NodeMut::List(_) => {},
-			}
-		}) {
-			println!("Cannot find `{}`", path);
+				}) {
+					println!("Cannot find `{}`", path);
+				}
+			},
+			// Print the tree of props if empty
+			None => {
+				cvar::console::walk(&mut nested, |path, node| {
+					match node.as_node_mut() {
+						cvar::NodeMut::Prop(prop) => {
+							println!("{} `{}`", path, prop.get());
+						},
+						cvar::NodeMut::List(_list) => (),
+						cvar::NodeMut::Action(_act) => {
+							println!("{}", path);
+						},
+					}
+				});
+			},
 		}
 	}
 }

@@ -15,7 +15,7 @@ impl IVisit for Foo {
 		f(&mut Property::new("int", &mut self.int, 42));
 		f(&mut Property::new("float", &mut self.float, 1.2f32));
 		f(&mut Property::new("string", &mut self.string, String::new()));
-		f(&mut Action::new("action", |args, console| self.action(args[0], console)));
+		f(&mut Action::new("action", |args, console| self.action(args, console)));
 	}
 }
 struct Root {

@@ -9,24 +9,30 @@ struct RuntimeProps {
 }
 impl RuntimeProps {
 	// Action to create new properties
-	fn create(&mut self, args: &[&str], console: &mut dyn cvar::IConsole) {
-		if args.len() != 3 {
+	fn create(&mut self, args: &str, console: &mut dyn cvar::IConsole) {
+		// Crude argument parsing
+		let args = args.trim();
+		let first = args.split_ascii_whitespace().next().unwrap_or("");
+		let args = args[first.len()..].trim_start();
+		let second = args.split_ascii_whitespace().next().unwrap_or("");
+		let third = args[second.len()..].trim_start();
+		if first.len() == 0 {
 			let _ = writeln!(console, "Invalid arguments! expecting <type> <name> <value>");
 			return;
 		}
-		match args[0] {
+		match first {
 			"string" => {
-				let prop = cvar::OwnedProp(args[1].into(), String::from(args[2]), String::from(args[2]));
+				let prop = cvar::OwnedProp(second.into(), String::from(third), String::from(third));
 				self.props.push(Box::new(prop));
 			},
 			"int" => {
-				let value: i32 = args[2].parse().unwrap();
-				let prop = cvar::OwnedProp(args[1].into(), value, value);
+				let value: i32 = third.parse().unwrap();
+				let prop = cvar::OwnedProp(second.into(), value, value);
 				self.props.push(Box::new(prop));
 			},
 			"float" => {
-				let value: f32 = args[2].parse().unwrap();
-				let prop = cvar::OwnedProp(args[1].into(), value, value);
+				let value: f32 = third.parse().unwrap();
+				let prop = cvar::OwnedProp(second.into(), value, value);
 				self.props.push(Box::new(prop));
 			},
 			_ => {
@@ -35,12 +41,12 @@ impl RuntimeProps {
 		}
 	}
 	// Action to remove properties
-	fn destroy(&mut self, args: &[&str], console: &mut dyn cvar::IConsole) {
-		if args.len() != 1 {
+	fn destroy(&mut self, args: &str, console: &mut dyn cvar::IConsole) {
+		if args.len() == 0 {
 			let _ = writeln!(console, "Invalid arguments! expecting the name of the property to remove");
 			return;
 		}
-		self.props.retain(|prop| prop.name() != args[0]);
+		self.props.retain(|prop| prop.name() != args);
 	}
 }
 impl cvar::IVisit for RuntimeProps {
@@ -58,9 +64,9 @@ fn main() {
 
 	// Create some runtime props
 	let mut output = String::new();
-	cvar::console::invoke(&mut runtime_props, "create!", &["float", "f", "3.141592"], &mut output);
-	cvar::console::invoke(&mut runtime_props, "create!", &["string", "s", "Hello World!"], &mut output);
-	cvar::console::invoke(&mut runtime_props, "create!", &["int", "i", "42"], &mut output);
+	cvar::console::invoke(&mut runtime_props, "create!", "float f 3.141592", &mut output);
+	cvar::console::invoke(&mut runtime_props, "create!", "string s Hello World!", &mut output);
+	cvar::console::invoke(&mut runtime_props, "create!", "int i 42", &mut output);
 
 	// Inspect the underlying props
 	assert_eq!(runtime_props.props.len(), 3);
@@ -81,48 +87,48 @@ fn main() {
 		}
 
 		// Crude command line parsing
-		let args: Vec<&str> = line.split_whitespace().collect();
-
-		// Print the tree of props if empty
-		if args.is_empty() {
-			cvar::console::walk(&mut runtime_props, |path, node| {
-				match node.as_node_mut() {
-					cvar::NodeMut::Prop(prop) => {
-						println!("{} `{}`", path, prop.get());
-					},
-					cvar::NodeMut::List(_list) => (),
-					cvar::NodeMut::Action(_act) => {
-						println!("{}", path);
-					},
-				}
-			});
-			continue;
-		}
-
-		// Find the node the user wants to interact with
-		let path = args[0];
-		let args = &args[1..];
-		if !cvar::console::find(&mut runtime_props, path, |node| {
-			match node.as_node_mut() {
-				cvar::NodeMut::Prop(prop) => {
-					// If we passed any arguments, try to set the value
-					if args.len() > 0 {
-						if let Err(err) = prop.set(args[0]) {
-							println!("Cannot parse `{}`: {}.", args[0], err);
-						}
+		let line = line.trim();
+		match line.split_ascii_whitespace().next() {
+			// Find the node the user wants to interact with
+			Some(path) => {
+				let args = line[path.len()..].trim_start();
+				if !cvar::console::find(&mut runtime_props, path, |node| {
+					match node.as_node_mut() {
+						cvar::NodeMut::Prop(prop) => {
+							// If we passed any arguments, try to set the value
+							if args.len() > 0 {
+								if let Err(err) = prop.set(args) {
+									println!("Cannot parse `{}`: {}.", args, err);
+								}
+							}
+							// In any case print the value the prop currently has
+							println!("{} `{}`", path, prop.get());
+						},
+						cvar::NodeMut::Action(act) => {
+							// Redirect output to stdout
+							let mut console = cvar::IoConsole::stdout();
+							act.invoke(args, &mut console);
+						},
+						cvar::NodeMut::List(_) => {},
 					}
-					// In any case print the value the prop currently has
-					println!("{} `{}`", path, prop.get());
-				},
-				cvar::NodeMut::Action(act) => {
-					// Redirect output to stdout
-					let mut console = cvar::IoConsole::stdout();
-					act.invoke(args, &mut console);
-				},
-				cvar::NodeMut::List(_) => {},
-			}
-		}) {
-			println!("Cannot find `{}`", path);
+				}) {
+					println!("Cannot find `{}`", path);
+				}
+			},
+			None => {
+				// Print the tree of props if empty
+				cvar::console::walk(&mut runtime_props, |path, node| {
+					match node.as_node_mut() {
+						cvar::NodeMut::Prop(prop) => {
+							println!("{} `{}`", path, prop.get());
+						},
+						cvar::NodeMut::List(_list) => (),
+						cvar::NodeMut::Action(_act) => {
+							println!("{}", path);
+						},
+					}
+				});
+			},
 		}
 	}
 }
