@@ -44,13 +44,13 @@ fn root() -> Root {
 #[test]
 fn main() {
 	let mut root = root();
-	assert!(console::set(&mut root, "foo.float", "-1").is_ok());
+	assert!(matches!(console::set(&mut root, "foo.float", "-1"), Ok(true)));
 	assert_eq!(root.foo.float, -1.0f32);
-	assert!(console::set(&mut root, "foo.before", "11").is_ok());
-	assert!(console::set(&mut root, "foo.after", "22").is_ok());
-	assert!(console::set(&mut root, "foo.int", "parse error").is_err());
-	assert!(!console::set(&mut root, "foo.list.bar", "name error").unwrap_or(true));
-	assert!(!console::set(&mut root, "foo.int.bar", "list error").unwrap_or(true));
-	assert!(!console::set(&mut root, "foo.action.bar", "list error").unwrap_or(true));
-	assert!(!console::set(&mut root, "foo.action", "prop error").unwrap_or(true));
+	assert!(matches!(console::set(&mut root, "foo.before", "11"), Ok(true)));
+	assert!(matches!(console::set(&mut root, "foo.after", "22"), Ok(true)));
+	assert!(matches!(console::set(&mut root, "foo.int", "parse error"), Err(_)));
+	assert!(matches!(console::set(&mut root, "foo.list.bar", "name error"), Ok(false)));
+	assert!(matches!(console::set(&mut root, "foo.int.bar", "list error"), Ok(false)));
+	assert!(matches!(console::set(&mut root, "foo.action.bar", "list error"), Ok(false)));
+	assert!(matches!(console::set(&mut root, "foo.action", "prop error"), Ok(false)));
 }
