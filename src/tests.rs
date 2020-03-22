@@ -12,10 +12,10 @@ impl Foo {
 }
 impl IVisit for Foo {
 	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode)) {
-		f(&mut Property::new("int", "int desc", &mut self.int, 42));
-		f(&mut Property::new("float", "float desc", &mut self.float, 1.2f32));
-		f(&mut Property::new("string", "string desc", &mut self.string, String::new()));
-		f(&mut Action::new("action", "action desc", |args, console| self.action(args[0], console)));
+		f(&mut Property::new("int", &mut self.int, 42));
+		f(&mut Property::new("float", &mut self.float, 1.2f32));
+		f(&mut Property::new("string", &mut self.string, String::new()));
+		f(&mut Action::new("action", |args, console| self.action(args[0], console)));
 	}
 }
 struct Root {
@@ -25,9 +25,9 @@ struct Root {
 }
 impl IVisit for Root {
 	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode)) {
-		f(&mut Property::new("foo.before", "foo.before desc", &mut self.before, 1));
-		f(&mut List::new("foo", "foo desc", &mut self.foo));
-		f(&mut Property::new("foo.after", "foo.after desc", &mut self.after, 2));
+		f(&mut Property::new("foo.before", &mut self.before, 1));
+		f(&mut List::new("foo", &mut self.foo));
+		f(&mut Property::new("foo.after", &mut self.after, 2));
 	}
 }
 fn root() -> Root {

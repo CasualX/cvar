@@ -45,8 +45,8 @@ impl RuntimeProps {
 }
 impl cvar::IVisit for RuntimeProps {
 	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-		f(&mut cvar::Action("create!", "", |args, console| self.create(args, console)));
-		f(&mut cvar::Action("destroy!", "", |args, console| self.destroy(args, console)));
+		f(&mut cvar::Action("create!", |args, console| self.create(args, console)));
+		f(&mut cvar::Action("destroy!", |args, console| self.destroy(args, console)));
 		for prop in &mut self.props {
 			f(prop.as_inode_mut());
 		}

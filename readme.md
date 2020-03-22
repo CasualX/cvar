@@ -52,9 +52,9 @@ This is ordinary Rust code, the idea is that you have some long-lived state that
 ```rust
 impl cvar::IVisit for ProgramState {
 	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
-		f(&mut cvar::Property("number", "this is a description", &mut self.number, 42));
-		f(&mut cvar::Property("text", "another description", &mut self.text, String::new()));
-		f(&mut cvar::Action("poke!", "change the state", |args, _console| self.poke(args[0])));
+		f(&mut cvar::Property("number", &mut self.number, 42));
+		f(&mut cvar::Property("text", &mut self.text, String::new()));
+		f(&mut cvar::Action("poke!", |args, _console| self.poke(args[0])));
 	}
 }
 ```
@@ -100,7 +100,7 @@ Configuration is the interface where a user meets and interacts with the program
 
 The goal of a configuration manager is to facilitate this interaction. This library's scope is more narrow in providing just the means to identify configurable elements and interact with them through text.
 
-A configurable element is called a _node_. Every _node_ has some metadata such as a _name_ and a _description_. There are three types of nodes: _properties_, _lists_ and _actions_.
+A configurable element is called a _node_. Every _node_ has a _name_. There are three types of nodes: _properties_, _lists_ and _actions_.
 
 * A _property_ stores a variable and has a _default value_.
 
@@ -130,7 +130,7 @@ In your Cargo.toml:
 
 ```
 [dependencies]
-cvar = "0.2"
+cvar = "0.3"
 ```
 
 License

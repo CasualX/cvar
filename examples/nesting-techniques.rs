@@ -22,11 +22,11 @@ impl Foo {
 }
 impl cvar::IVisit for Foo {
 	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-		f(&mut cvar::Action("int", "", |args, console| self.before_int_changed(args, console)));
-		f(&mut cvar::Property("int", "", &mut self.int, 0));
-		f(&mut cvar::Property("float", "", &mut self.float, 0.0));
-		f(&mut cvar::Action("float", "", |args, console| self.after_float_changed(args, console)));
-		f(&mut cvar::Property("string", "", &mut self.string, String::new()));
+		f(&mut cvar::Action("int", |args, console| self.before_int_changed(args, console)));
+		f(&mut cvar::Property("int", &mut self.int, 0));
+		f(&mut cvar::Property("float", &mut self.float, 0.0));
+		f(&mut cvar::Action("float", |args, console| self.after_float_changed(args, console)));
+		f(&mut cvar::Property("string", &mut self.string, String::new()));
 	}
 }
 
@@ -39,8 +39,8 @@ struct Nested {
 }
 impl cvar::IVisit for Nested {
 	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-		f(&mut cvar::Property("foo.bool", "", &mut self.boolean, false));
-		f(&mut cvar::List("foo", "", &mut self.foo));
+		f(&mut cvar::Property("foo.bool", &mut self.boolean, false));
+		f(&mut cvar::List("foo", &mut self.foo));
 	}
 }
 

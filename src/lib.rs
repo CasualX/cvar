@@ -68,13 +68,9 @@ type BoxResult<T> = Result<T, Box<dyn StdError + Send + Sync + 'static>>;
 //----------------------------------------------------------------
 
 /// Node interface.
-///
-/// Defines the basic requirements of a node such as having a name and a description.
 pub trait INode {
 	/// Returns the node name.
 	fn name(&self) -> &str;
-	/// Returns the node description.
-	fn description(&self) -> &str;
 	/// Downcasts to a more specific node interface.
 	fn as_node_mut(&mut self) -> NodeMut<'_>;
 	/// Upcasts back to an `INode` trait object.
@@ -94,13 +90,6 @@ impl INode for NodeMut<'_> {
 			NodeMut::Prop(prop) => prop.name(),
 			NodeMut::List(list) => list.name(),
 			NodeMut::Action(act) => act.name(),
-		}
-	}
-	fn description(&self) -> &str {
-		match self {
-			NodeMut::Prop(prop) => prop.description(),
-			NodeMut::List(list) => list.description(),
-			NodeMut::Action(act) => act.description(),
 		}
 	}
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
@@ -166,7 +155,6 @@ impl fmt::Debug for dyn IProperty + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		let mut debug = f.debug_struct("IProperty");
 		debug.field("name", &self.name());
-		debug.field("desc", &self.description());
 		debug.field("value", &self.get());
 		debug.field("default", &self.default());
 		debug.field("state", &self.state());
@@ -183,17 +171,16 @@ impl fmt::Debug for dyn IProperty + '_ {
 /// Property node.
 pub struct Property<'a, T> {
 	name: &'a str,
-	desc: &'a str,
 	variable: &'a mut T,
 	default: T,
 }
 #[allow(non_snake_case)]
-pub fn Property<'a, T>(name: &'a str, desc: &'a str, variable: &'a mut T, default: T) -> Property<'a, T> {
-	Property { name, desc, variable, default }
+pub fn Property<'a, T>(name: &'a str, variable: &'a mut T, default: T) -> Property<'a, T> {
+	Property { name, variable, default }
 }
 impl<'a, T> Property<'a, T> {
-	pub fn new(name: &'a str, desc: &'a str, variable: &'a mut T, default: T) -> Property<'a, T> {
-		Property { name, desc, variable, default }
+	pub fn new(name: &'a str, variable: &'a mut T, default: T) -> Property<'a, T> {
+		Property { name, variable, default }
 	}
 }
 impl<'a, T> INode for Property<'a, T>
@@ -202,9 +189,6 @@ impl<'a, T> INode for Property<'a, T>
 {
 	fn name(&self) -> &str {
 		self.name
-	}
-	fn description(&self) -> &str {
-		self.desc
 	}
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Prop(self)
@@ -243,19 +227,18 @@ impl<'a, T> IProperty for Property<'a, T>
 /// Property node with its value clamped.
 pub struct ClampedProp<'a, T> {
 	name: &'a str,
-	desc: &'a str,
 	variable: &'a mut T,
 	default: T,
 	min: T,
 	max: T,
 }
 #[allow(non_snake_case)]
-pub fn ClampedProp<'a, T>(name: &'a str, desc: &'a str, variable: &'a mut T, default: T, min: T, max: T) -> ClampedProp<'a, T> {
-	ClampedProp { name, desc, variable, default, min, max }
+pub fn ClampedProp<'a, T>(name: &'a str, variable: &'a mut T, default: T, min: T, max: T) -> ClampedProp<'a, T> {
+	ClampedProp { name, variable, default, min, max }
 }
 impl<'a, T> ClampedProp<'a, T> {
-	pub fn new(name: &'a str, desc: &'a str, variable: &'a mut T, default: T, min: T, max: T) -> ClampedProp<'a, T> {
-		ClampedProp { name, desc, variable, default, min, max }
+	pub fn new(name: &'a str, variable: &'a mut T, default: T, min: T, max: T) -> ClampedProp<'a, T> {
+		ClampedProp { name, variable, default, min, max }
 	}
 }
 impl<'a, T> INode for ClampedProp<'a, T>
@@ -264,9 +247,6 @@ impl<'a, T> INode for ClampedProp<'a, T>
 {
 	fn name(&self) -> &str {
 		self.name
-	}
-	fn description(&self) -> &str {
-		self.desc
 	}
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Prop(self)
@@ -311,25 +291,21 @@ impl<'a, T> IProperty for ClampedProp<'a, T>
 /// Read-only property node.
 pub struct ReadOnlyProp<'a, T> {
 	name: &'a str,
-	desc: &'a str,
 	variable: &'a T,
 	default: T,
 }
 #[allow(non_snake_case)]
-pub fn ReadOnlyProp<'a, T>(name: &'a str, desc: &'a str, variable: &'a T, default: T) -> ReadOnlyProp<'a, T> {
-	ReadOnlyProp { name, desc, variable, default }
+pub fn ReadOnlyProp<'a, T>(name: &'a str, variable: &'a T, default: T) -> ReadOnlyProp<'a, T> {
+	ReadOnlyProp { name, variable, default }
 }
 impl<'a, T> ReadOnlyProp<'a, T> {
-	pub fn new(name: &'a str, desc: &'a str, variable: &'a T, default: T) -> ReadOnlyProp<'a, T> {
-		ReadOnlyProp { name, desc, variable, default }
+	pub fn new(name: &'a str, variable: &'a T, default: T) -> ReadOnlyProp<'a, T> {
+		ReadOnlyProp { name, variable, default }
 	}
 }
 impl<'a, T: ToString + PartialEq> INode for ReadOnlyProp<'a, T> {
 	fn name(&self) -> &str {
 		self.name
-	}
-	fn description(&self) -> &str {
-		self.desc
 	}
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Prop(self)
@@ -380,7 +356,6 @@ impl<T> INode for OwnedProp<T>
 	      T::Err: StdError + Send + Sync + 'static
 {
 	fn name(&self) -> &str { &self.name }
-	fn description(&self) -> &str { "" }
 	fn as_node_mut(&mut self) -> NodeMut<'_> { NodeMut::Prop(self) }
 	fn as_inode_mut(&mut self) -> &mut dyn INode { self }
 }
@@ -424,7 +399,7 @@ impl<T> IProperty for OwnedProp<T>
 /// impl cvar::IVisit for Foo {
 /// 	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
 /// 		// Pass type-erased properties, lists and actions to the closure
-/// 		f(&mut cvar::Property("data", "description", &mut self.data, 42));
+/// 		f(&mut cvar::Property("data", &mut self.data, 42));
 /// 	}
 /// }
 /// ```
@@ -450,7 +425,7 @@ impl fmt::Debug for dyn IVisit + '_ {
 /// let mut value = 0;
 ///
 /// let mut visitor = cvar::VisitMut(|f| {
-/// 	f(&mut cvar::Property("value", "description", &mut value, 0));
+/// 	f(&mut cvar::Property("value", &mut value, 0));
 /// });
 ///
 /// let _ = cvar::console::set(&mut visitor, "value", "42");
@@ -468,8 +443,6 @@ impl<F: FnMut(&mut dyn FnMut(&mut dyn INode))> IVisit for VisitMut<F> {
 
 /// List of child nodes.
 ///
-/// An `IList` implements the node interface with its associated name and description metadata.
-///
 /// You probably want to implement [the `IVisit` trait](trait.IVisit.html) instead of this one.
 pub trait IList: INode {
 	/// Returns a visitor trait object to visit the children.
@@ -479,7 +452,6 @@ impl fmt::Debug for dyn IList + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		f.debug_struct("IList")
 			.field("name", &self.name())
-			.field("desc", &self.description())
 			.finish()
 	}
 }
@@ -490,24 +462,20 @@ impl fmt::Debug for dyn IList + '_ {
 #[derive(Debug)]
 pub struct List<'a, V> {
 	name: &'a str,
-	desc: &'a str,
 	visitor: &'a mut V,
 }
 #[allow(non_snake_case)]
-pub fn List<'a, V>(name: &'a str, desc: &'a str, visitor: &'a mut V) -> List<'a, V> {
-	List { name, desc, visitor }
+pub fn List<'a, V>(name: &'a str, visitor: &'a mut V) -> List<'a, V> {
+	List { name, visitor }
 }
 impl<'a, V> List<'a, V> {
-	pub fn new(name: &'a str, desc: &'a str, visitor: &'a mut V) -> List<'a, V> {
-		List { name, desc, visitor }
+	pub fn new(name: &'a str, visitor: &'a mut V) -> List<'a, V> {
+		List { name, visitor }
 	}
 }
 impl<'a, V: IVisit> INode for List<'a, V> {
 	fn name(&self) -> &str {
 		self.name
-	}
-	fn description(&self) -> &str {
-		self.desc
 	}
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::List(self)
@@ -592,7 +560,6 @@ impl fmt::Debug for dyn IAction + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		f.debug_struct("IAction")
 			.field("name", &self.name())
-			.field("desc", &self.description())
 			.finish()
 	}
 }
@@ -603,24 +570,20 @@ impl fmt::Debug for dyn IAction + '_ {
 #[derive(Debug)]
 pub struct Action<'a, F: FnMut(&[&str], &mut dyn IConsole)> {
 	name: &'a str,
-	desc: &'a str,
 	invoke: F,
 }
 #[allow(non_snake_case)]
-pub fn Action<'a, F: FnMut(&[&str], &mut dyn IConsole)>(name: &'a str, desc: &'a str, invoke: F) -> Action<'a, F> {
-	Action { name, desc, invoke }
+pub fn Action<'a, F: FnMut(&[&str], &mut dyn IConsole)>(name: &'a str, invoke: F) -> Action<'a, F> {
+	Action { name, invoke }
 }
 impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> Action<'a, F> {
-	pub fn new(name: &'a str, desc: &'a str, invoke: F) -> Action<'a, F> {
-		Action { name, desc, invoke }
+	pub fn new(name: &'a str, invoke: F) -> Action<'a, F> {
+		Action { name, invoke }
 	}
 }
 impl<'a, F: FnMut(&[&str], &mut dyn IConsole)> INode for Action<'a, F> {
 	fn name(&self) -> &str {
 		self.name
-	}
-	fn description(&self) -> &str {
-		self.desc
 	}
 	fn as_node_mut(&mut self) -> NodeMut<'_> {
 		NodeMut::Action(self)
