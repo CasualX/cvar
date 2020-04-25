@@ -50,11 +50,11 @@ impl RuntimeProps {
 	}
 }
 impl cvar::IVisit for RuntimeProps {
-	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
+	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Action("create!", |args, console| self.create(args, console)));
 		f(&mut cvar::Action("destroy!", |args, console| self.destroy(args, console)));
 		for prop in &mut self.props {
-			f(prop.as_inode_mut());
+			f(prop.as_inode());
 		}
 	}
 }
@@ -93,8 +93,8 @@ fn main() {
 			Some(path) => {
 				let args = line[path.len()..].trim_start();
 				if !cvar::console::find(&mut runtime_props, path, |node| {
-					match node.as_node_mut() {
-						cvar::NodeMut::Prop(prop) => {
+					match node.as_node() {
+						cvar::Node::Prop(prop) => {
 							// If we passed any arguments, try to set the value
 							if args.len() > 0 {
 								if let Err(err) = prop.set(args) {
@@ -104,12 +104,12 @@ fn main() {
 							// In any case print the value the prop currently has
 							println!("{} `{}`", path, prop.get());
 						},
-						cvar::NodeMut::Action(act) => {
+						cvar::Node::Action(act) => {
 							// Redirect output to stdout
 							let mut console = cvar::IoConsole::stdout();
 							act.invoke(args, &mut console);
 						},
-						cvar::NodeMut::List(_) => {},
+						cvar::Node::List(_) => {},
 					}
 				}) {
 					println!("Cannot find `{}`", path);
@@ -118,12 +118,12 @@ fn main() {
 			None => {
 				// Print the tree of props if empty
 				cvar::console::walk(&mut runtime_props, |path, node| {
-					match node.as_node_mut() {
-						cvar::NodeMut::Prop(prop) => {
+					match node.as_node() {
+						cvar::Node::Prop(prop) => {
 							println!("{} `{}`", path, prop.get());
 						},
-						cvar::NodeMut::List(_list) => (),
-						cvar::NodeMut::Action(_act) => {
+						cvar::Node::List(_list) => (),
+						cvar::Node::Action(_act) => {
 							println!("{}", path);
 						},
 					}

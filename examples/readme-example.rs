@@ -13,7 +13,7 @@ impl ProgramState {
 }
 
 impl cvar::IVisit for ProgramState {
-	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
+	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Property("number", &mut self.number, 42));
 		f(&mut cvar::Property("text", &mut self.text, String::new()));
 		f(&mut cvar::Action("poke!", |args, _console| self.poke(args)));

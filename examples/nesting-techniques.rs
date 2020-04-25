@@ -21,7 +21,7 @@ impl Foo {
 	}
 }
 impl cvar::IVisit for Foo {
-	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
+	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Action("int", |args, console| self.before_int_changed(args, console)));
 		f(&mut cvar::Property("int", &mut self.int, 0));
 		f(&mut cvar::Property("float", &mut self.float, 0.0));
@@ -38,7 +38,7 @@ struct Nested {
 	foo: Foo,
 }
 impl cvar::IVisit for Nested {
-	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
+	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Property("foo.bool", &mut self.boolean, false));
 		f(&mut cvar::List("foo", &mut self.foo));
 	}
@@ -70,8 +70,8 @@ fn main() {
 			Some(path) => {
 				let args = line[path.len()..].trim_start();
 				if !cvar::console::find(&mut nested, path, |node| {
-					match node.as_node_mut() {
-						cvar::NodeMut::Prop(prop) => {
+					match node.as_node() {
+						cvar::Node::Prop(prop) => {
 							// If we passed any arguments, try to set the value
 							if args.len() > 0 {
 								if let Err(err) = prop.set(args) {
@@ -81,12 +81,12 @@ fn main() {
 							// In any case print the value the prop currently has
 							println!("{} `{}`", path, prop.get());
 						},
-						cvar::NodeMut::Action(act) => {
+						cvar::Node::Action(act) => {
 							// Redirect to stdout
 							let mut console = cvar::IoConsole::stdout();
 							act.invoke(args, &mut console);
 						},
-						cvar::NodeMut::List(_) => {},
+						cvar::Node::List(_) => {},
 					}
 				}) {
 					println!("Cannot find `{}`", path);
@@ -95,12 +95,12 @@ fn main() {
 			// Print the tree of props if empty
 			None => {
 				cvar::console::walk(&mut nested, |path, node| {
-					match node.as_node_mut() {
-						cvar::NodeMut::Prop(prop) => {
+					match node.as_node() {
+						cvar::Node::Prop(prop) => {
 							println!("{} `{}`", path, prop.get());
 						},
-						cvar::NodeMut::List(_list) => (),
-						cvar::NodeMut::Action(_act) => {
+						cvar::Node::List(_list) => (),
+						cvar::Node::Action(_act) => {
 							println!("{}", path);
 						},
 					}

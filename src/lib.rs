@@ -20,7 +20,7 @@ Implement [the `IVisit` trait](trait.IVisit.html) to make this structure availab
 ```
 # struct User { name: String } impl User { pub fn greet(&self, console: &mut dyn cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
 impl cvar::IVisit for User {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+	fn visit(&mut self, f: &mut FnMut(&mut cvar::INode)) {
 		f(&mut cvar::Property("name", &mut self.name, String::new()));
 		f(&mut cvar::Action("greet!", |_args, console| self.greet(console)));
 	}
@@ -40,7 +40,7 @@ Given unique access, interact with the instance with a stringly typed API:
 
 ```
 # struct User { name: String } impl User { pub fn greet(&self, console: &mut dyn cvar::IConsole) { let _ = writeln!(console, "Hello, {}!", self.name); } }
-# impl cvar::IVisit for User { fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) { f(&mut cvar::Property("name", &mut self.name, String::new())); f(&mut cvar::Action("greet!", |_args, console| self.greet(console))); } }
+# impl cvar::IVisit for User { fn visit(&mut self, f: &mut FnMut(&mut cvar::INode)) { f(&mut cvar::Property("name", &mut self.name, String::new())); f(&mut cvar::Action("greet!", |_args, console| self.greet(console))); } }
 # let mut user = User { name: String::new() };
 // Give the user a name
 cvar::console::set(&mut user, "name", "World").unwrap();
@@ -72,34 +72,34 @@ pub trait INode {
 	/// Returns the node name.
 	fn name(&self) -> &str;
 	/// Downcasts to a more specific node interface.
-	fn as_node_mut(&mut self) -> NodeMut<'_>;
+	fn as_node(&mut self) -> Node<'_>;
 	/// Upcasts back to an `INode` trait object.
-	fn as_inode_mut(&mut self) -> &mut dyn INode;
+	fn as_inode(&mut self) -> &mut dyn INode;
 }
 
 /// Enumerates derived interfaces for downcasting.
 #[derive(Debug)]
-pub enum NodeMut<'a> {
+pub enum Node<'a> {
 	Prop(&'a mut dyn IProperty),
 	List(&'a mut dyn IList),
 	Action(&'a mut dyn IAction),
 }
-impl INode for NodeMut<'_> {
+impl INode for Node<'_> {
 	fn name(&self) -> &str {
 		match self {
-			NodeMut::Prop(prop) => prop.name(),
-			NodeMut::List(list) => list.name(),
-			NodeMut::Action(act) => act.name(),
+			Node::Prop(prop) => prop.name(),
+			Node::List(list) => list.name(),
+			Node::Action(act) => act.name(),
 		}
 	}
-	fn as_node_mut(&mut self) -> NodeMut<'_> {
+	fn as_node(&mut self) -> Node<'_> {
 		match self {
-			NodeMut::Prop(prop) => NodeMut::Prop(*prop),
-			NodeMut::List(list) => NodeMut::List(*list),
-			NodeMut::Action(act) => NodeMut::Action(*act),
+			Node::Prop(prop) => Node::Prop(*prop),
+			Node::List(list) => Node::List(*list),
+			Node::Action(act) => Node::Action(*act),
 		}
 	}
-	fn as_inode_mut(&mut self) -> &mut dyn INode {
+	fn as_inode(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -190,10 +190,10 @@ impl<'a, T> INode for Property<'a, T>
 	fn name(&self) -> &str {
 		self.name
 	}
-	fn as_node_mut(&mut self) -> NodeMut<'_> {
-		NodeMut::Prop(self)
+	fn as_node(&mut self) -> Node<'_> {
+		Node::Prop(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut dyn INode {
+	fn as_inode(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -248,10 +248,10 @@ impl<'a, T> INode for ClampedProp<'a, T>
 	fn name(&self) -> &str {
 		self.name
 	}
-	fn as_node_mut(&mut self) -> NodeMut<'_> {
-		NodeMut::Prop(self)
+	fn as_node(&mut self) -> Node<'_> {
+		Node::Prop(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut dyn INode {
+	fn as_inode(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -307,10 +307,10 @@ impl<'a, T: ToString + PartialEq> INode for ReadOnlyProp<'a, T> {
 	fn name(&self) -> &str {
 		self.name
 	}
-	fn as_node_mut(&mut self) -> NodeMut<'_> {
-		NodeMut::Prop(self)
+	fn as_node(&mut self) -> Node<'_> {
+		Node::Prop(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut dyn INode {
+	fn as_inode(&mut self) -> &mut dyn INode {
 		self
 	}
 }
@@ -356,8 +356,8 @@ impl<T> INode for OwnedProp<T>
 	      T::Err: StdError + Send + Sync + 'static
 {
 	fn name(&self) -> &str { &self.name }
-	fn as_node_mut(&mut self) -> NodeMut<'_> { NodeMut::Prop(self) }
-	fn as_inode_mut(&mut self) -> &mut dyn INode { self }
+	fn as_node(&mut self) -> Node<'_> { Node::Prop(self) }
+	fn as_inode(&mut self) -> &mut dyn INode { self }
 }
 impl<T> IProperty for OwnedProp<T>
 	where T: FromStr + ToString + Clone + PartialEq,
@@ -397,7 +397,7 @@ impl<T> IProperty for OwnedProp<T>
 /// 	data: i32,
 /// }
 /// impl cvar::IVisit for Foo {
-/// 	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+/// 	fn visit(&mut self, f: &mut FnMut(&mut cvar::INode)) {
 /// 		// Pass type-erased properties, lists and actions to the closure
 /// 		f(&mut cvar::Property("data", &mut self.data, 42));
 /// 	}
@@ -407,7 +407,7 @@ pub trait IVisit {
 	/// Visits the child nodes.
 	///
 	/// Callers may depend on the particular order in which the nodes are passed to the closure.
-	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode));
+	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn INode));
 }
 impl fmt::Debug for dyn IVisit + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -424,7 +424,7 @@ impl fmt::Debug for dyn IVisit + '_ {
 /// ```
 /// let mut value = 0;
 ///
-/// let mut visitor = cvar::VisitMut(|f| {
+/// let mut visitor = cvar::Visit(|f| {
 /// 	f(&mut cvar::Property("value", &mut value, 0));
 /// });
 ///
@@ -432,10 +432,11 @@ impl fmt::Debug for dyn IVisit + '_ {
 /// assert_eq!(value, 42);
 /// ```
 #[derive(Copy, Clone, Debug)]
-pub struct VisitMut<F: FnMut(&mut dyn FnMut(&mut dyn INode))>(pub F);
-impl<F: FnMut(&mut dyn FnMut(&mut dyn INode))> IVisit for VisitMut<F> {
-	fn visit_mut(&mut self, f: &mut dyn FnMut(&mut dyn INode)) {
-		(self.0)(f)
+pub struct Visit<F: FnMut(&mut dyn FnMut(&mut dyn INode))>(pub F);
+impl<F: FnMut(&mut dyn FnMut(&mut dyn INode))> IVisit for Visit<F> {
+	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn INode)) {
+		let Self(this) = self;
+		this(f)
 	}
 }
 
@@ -446,7 +447,7 @@ impl<F: FnMut(&mut dyn FnMut(&mut dyn INode))> IVisit for VisitMut<F> {
 /// You probably want to implement [the `IVisit` trait](trait.IVisit.html) instead of this one.
 pub trait IList: INode {
 	/// Returns a visitor trait object to visit the children.
-	fn as_visit_mut(&mut self) -> &mut dyn IVisit;
+	fn as_ivisit(&mut self) -> &mut dyn IVisit;
 }
 impl fmt::Debug for dyn IList + '_ {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -460,32 +461,32 @@ impl fmt::Debug for dyn IList + '_ {
 
 /// List node.
 #[derive(Debug)]
-pub struct List<'a, V> {
+pub struct List<'a> {
 	name: &'a str,
-	visitor: &'a mut V,
+	visitor: &'a mut dyn IVisit,
 }
 #[allow(non_snake_case)]
-pub fn List<'a, V>(name: &'a str, visitor: &'a mut V) -> List<'a, V> {
+pub fn List<'a>(name: &'a str, visitor: &'a mut dyn IVisit) -> List<'a> {
 	List { name, visitor }
 }
-impl<'a, V> List<'a, V> {
-	pub fn new(name: &'a str, visitor: &'a mut V) -> List<'a, V> {
+impl<'a> List<'a> {
+	pub fn new(name: &'a str, visitor: &'a mut dyn IVisit) -> List<'a> {
 		List { name, visitor }
 	}
 }
-impl<'a, V: IVisit> INode for List<'a, V> {
+impl<'a> INode for List<'a> {
 	fn name(&self) -> &str {
 		self.name
 	}
-	fn as_node_mut(&mut self) -> NodeMut<'_> {
-		NodeMut::List(self)
+	fn as_node(&mut self) -> Node<'_> {
+		Node::List(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut dyn INode {
+	fn as_inode(&mut self) -> &mut dyn INode {
 		self
 	}
 }
-impl<'a, V: IVisit> IList for List<'a, V> {
-	fn as_visit_mut(&mut self) -> &mut dyn IVisit {
+impl<'a> IList for List<'a> {
+	fn as_ivisit(&mut self) -> &mut dyn IVisit {
 		self.visitor
 	}
 }
@@ -523,15 +524,18 @@ impl IConsole for NullConsole {
 pub struct IoConsole<W>(pub W);
 impl<W: io::Write> fmt::Write for IoConsole<W> {
 	fn write_str(&mut self, s: &str) -> fmt::Result {
-		io::Write::write_all(&mut self.0, s.as_bytes()).map_err(|_| fmt::Error)
+		let Self(this) = self;
+		io::Write::write_all(this, s.as_bytes()).map_err(|_| fmt::Error)
 	}
 	fn write_fmt(&mut self, args: fmt::Arguments) -> fmt::Result {
-		io::Write::write_fmt(&mut self.0, args).map_err(|_| fmt::Error)
+		let Self(this) = self;
+		io::Write::write_fmt(this, args).map_err(|_| fmt::Error)
 	}
 }
 impl<W: io::Write> IConsole for IoConsole<W> {
 	fn write_error(&mut self, err: &(dyn StdError + 'static)) {
-		let _ = writeln!(self.0, "error: {}", err);
+		let Self(this) = self;
+		let _ = writeln!(this, "error: {}", err);
 	}
 }
 impl IoConsole<io::Stdout> {
@@ -585,10 +589,10 @@ impl<'a, F: FnMut(&str, &mut dyn IConsole)> INode for Action<'a, F> {
 	fn name(&self) -> &str {
 		self.name
 	}
-	fn as_node_mut(&mut self) -> NodeMut<'_> {
-		NodeMut::Action(self)
+	fn as_node(&mut self) -> Node<'_> {
+		Node::Action(self)
 	}
-	fn as_inode_mut(&mut self) -> &mut dyn INode {
+	fn as_inode(&mut self) -> &mut dyn INode {
 		self
 	}
 }

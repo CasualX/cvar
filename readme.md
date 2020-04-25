@@ -51,7 +51,7 @@ This is ordinary Rust code, the idea is that you have some long-lived state that
 
 ```rust
 impl cvar::IVisit for ProgramState {
-	fn visit_mut(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+	fn visit(&mut self, f: &mut FnMut(&mut cvar::INode)) {
 		f(&mut cvar::Property("number", &mut self.number, 42));
 		f(&mut cvar::Property("text", &mut self.text, String::new()));
 		f(&mut cvar::Action("poke!", |args, _console| self.poke(args)));
@@ -62,7 +62,7 @@ impl cvar::IVisit for ProgramState {
 The next step is to implement the `IVisit` trait.
 This trait lies at the heart of this crate's functionality.
 
-Its `visit_mut` method allows callers to discover the interactive elements of the structure.
+Its `visit` method allows callers to discover the interactive elements of the structure.
 Call the closure with all the interactive elements wrapped in a 'node' type such as a `Property` or an `Action`.
 
 Note the ephemeral nature of the nodes, this plays very well into Rust's ownership model and avoids battles with the borrow checker as the nodes temporarily wrap around the underlying variables and methods.

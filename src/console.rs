@@ -15,7 +15,7 @@ use super::*;
 pub fn set(root: &mut dyn IVisit, path: &str, val: &str) -> BoxResult<bool> {
 	let mut result = Ok(false);
 	find(root, path, |node| {
-		if let NodeMut::Prop(prop) = node.as_node_mut() {
+		if let Node::Prop(prop) = node.as_node() {
 			result = prop.set(val).map(|_| true);
 		}
 	});
@@ -27,7 +27,7 @@ pub fn set(root: &mut dyn IVisit, path: &str, val: &str) -> BoxResult<bool> {
 pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 	let mut result = None;
 	find(root, path, |node| {
-		if let NodeMut::Prop(prop) = node.as_node_mut() {
+		if let Node::Prop(prop) = node.as_node() {
 			result = Some(prop.get());
 		}
 	});
@@ -39,20 +39,20 @@ pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 /// Given a list node will reset all its children to their default. Ignores action nodes.
 pub fn reset(root: &mut dyn IVisit, path: &str) -> bool {
 	find(root, path, |node| {
-		match node.as_node_mut() {
-			NodeMut::Prop(prop) => prop.reset(),
-			NodeMut::List(list) => reset_all(list.as_visit_mut()),
-			NodeMut::Action(_) => (),
+		match node.as_node() {
+			Node::Prop(prop) => prop.reset(),
+			Node::List(list) => reset_all(list.as_ivisit()),
+			Node::Action(_) => (),
 		}
 	})
 }
 /// Resets all properties to their default.
 pub fn reset_all(root: &mut dyn IVisit) {
-	root.visit_mut(&mut |node| {
-		match node.as_node_mut() {
-			NodeMut::Prop(prop) => prop.reset(),
-			NodeMut::List(list) => reset_all(list.as_visit_mut()),
-			NodeMut::Action(_) => (),
+	root.visit(&mut |node| {
+		match node.as_node() {
+			Node::Prop(prop) => prop.reset(),
+			Node::List(list) => reset_all(list.as_ivisit()),
+			Node::Action(_) => (),
 		}
 	});
 }
@@ -127,15 +127,15 @@ pub fn find<F: FnMut(&mut dyn INode)>(root: &mut dyn IVisit, path: &str, mut f: 
 }
 fn find_rec(list: &mut dyn IVisit, path: &str, f: &mut dyn FnMut(&mut dyn INode)) -> bool {
 	let mut found = false;
-	list.visit_mut(&mut |node| {
+	list.visit(&mut |node| {
 		match ComparePath::cmp(path, node.name()) {
 			ComparePath::True => {
 				f(node);
 				found = true;
 			},
 			ComparePath::Part(tail) => {
-				if let NodeMut::List(list) = node.as_node_mut() {
-					found |= find_rec(list.as_visit_mut(), tail, f);
+				if let Node::List(list) = node.as_node() {
+					found |= find_rec(list.as_ivisit(), tail, f);
 				}
 			},
 			ComparePath::False => {},
@@ -151,7 +151,7 @@ pub fn walk<F: FnMut(&str, &mut dyn INode)>(root: &mut dyn IVisit, mut f: F) {
 	walk_rec(root, &mut path, &mut f);
 }
 fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &mut dyn INode)) {
-	list.visit_mut(&mut |node| {
+	list.visit(&mut |node| {
 		// Construct the path
 		let len = path.len();
 		if len > 0 {
@@ -161,8 +161,8 @@ fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &m
 		// Tell our caller about the node
 		f(&path, node);
 		// Recursively visit list nodes
-		if let NodeMut::List(list) = node.as_node_mut() {
-			walk_rec(list.as_visit_mut(), path, f);
+		if let Node::List(list) = node.as_node() {
+			walk_rec(list.as_ivisit(), path, f);
 		}
 		// Pop off the name so we can reuse this string
 		path.truncate(len);
@@ -176,7 +176,7 @@ fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &m
 pub fn invoke(root: &mut dyn IVisit, path: &str, args: &str, console: &mut dyn IConsole) -> bool {
 	let mut found = false;
 	find(root, path, |node| {
-		if let NodeMut::Action(act) = node.as_node_mut() {
+		if let Node::Action(act) = node.as_node() {
 			found = true;
 			act.invoke(args, console);
 		}
