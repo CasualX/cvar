@@ -55,7 +55,7 @@ assert_eq!(console, "Hello, World!\n");
 This example is extremely basic, for more complex scenarios see the examples.
 !*/
 
-use std::{error::Error as StdError, fmt, io, str::FromStr};
+use std::{any, error::Error as StdError, fmt, io, str::FromStr};
 
 pub mod console;
 
@@ -142,7 +142,7 @@ pub trait IProperty: INode {
 	/// Returns the name of this concrete type.
 	#[cfg(feature = "type_name")]
 	fn type_name(&self) -> &str {
-		std::any::type_name::<Self>()
+		any::type_name::<Self>()
 	}
 	/// Returns a list of valid value strings for this property.
 	///
@@ -494,7 +494,7 @@ impl<'a> IList for List<'a> {
 //----------------------------------------------------------------
 
 /// Console interface for actions to write output to.
-pub trait IConsole: fmt::Write {
+pub trait IConsole: any::Any + fmt::Write {
 	/// Notifies the console an error has occurred.
 	fn write_error(&mut self, err: &(dyn StdError + 'static));
 }
@@ -532,7 +532,7 @@ impl<W: io::Write> fmt::Write for IoConsole<W> {
 		io::Write::write_fmt(this, args).map_err(|_| fmt::Error)
 	}
 }
-impl<W: io::Write> IConsole for IoConsole<W> {
+impl<W: io::Write + 'static> IConsole for IoConsole<W> {
 	fn write_error(&mut self, err: &(dyn StdError + 'static)) {
 		let Self(this) = self;
 		let _ = writeln!(this, "error: {}", err);
