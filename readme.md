@@ -4,7 +4,7 @@ Configuration Variables
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![crates.io](https://img.shields.io/crates/v/cvar.svg)](https://crates.io/crates/cvar)
 [![docs.rs](https://docs.rs/cvar/badge.svg)](https://docs.rs/cvar)
-[![Build Status](https://travis-ci.org/CasualX/cvar.svg?branch=master)](https://travis-ci.org/CasualX/cvar)
+[![Build status](https://github.com/CasualX/cvar/workflows/CI/badge.svg)](https://github.com/CasualX/cvar/actions)
 
 Configure programs through stringly typed API.
 
