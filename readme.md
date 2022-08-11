@@ -6,7 +6,7 @@ Configuration Variables
 [![docs.rs](https://docs.rs/cvar/badge.svg)](https://docs.rs/cvar)
 [![Build status](https://github.com/CasualX/cvar/workflows/CI/badge.svg)](https://github.com/CasualX/cvar/actions)
 
-Configure programs through stringly typed API.
+Configure program state through stringly typed API.
 
 Introduction
 ------------
@@ -16,16 +16,23 @@ When an application does a particular job and exits, configuration can be loaded
 When an application is long-lived this may not suffice, it may want to have:
 
 * Its configuration changed one setting at the time.
-
 * Complex hierarchical organization of the configuration.
-
 * An interface where the state of the configuration can be queried and updated.
-
 * Executable actions instead of just variables.
-
 * Addon support which needs its own configuration mounted under a prefix.
-
 * Support dynamic configuration created at runtime.
+
+Usage
+-----
+
+This crate is on [crates.io](https://crates.io/crates/cvar), documentation is on [docs.rs](https://docs.rs/cvar).
+
+In your Cargo.toml:
+
+```text
+[dependencies]
+cvar = "0.3"
+```
 
 Examples
 --------
@@ -51,7 +58,7 @@ This is ordinary Rust code, the idea is that you have some long-lived state that
 
 ```rust
 impl cvar::IVisit for ProgramState {
-	fn visit(&mut self, f: &mut FnMut(&mut cvar::INode)) {
+	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Property("number", &mut self.number, 42));
 		f(&mut cvar::Property("text", &mut self.text, String::new()));
 		f(&mut cvar::Action("poke!", |args, _console| self.poke(args)));
@@ -118,20 +125,6 @@ Future work
 Implement autocomplete for identifiers and suggestions for property values and actions.
 
 Implement helpers for enums and enum flags support.
-
-Usage
------
-
-This crate is available on [crates.io](https://crates.io/crates/cvar).
-
-Documentation is available on [docs.rs](https://docs.rs/cvar).
-
-In your Cargo.toml:
-
-```
-[dependencies]
-cvar = "0.3"
-```
 
 License
 -------

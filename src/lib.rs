@@ -53,7 +53,7 @@ assert_eq!(console, "Hello, World!\n");
 ```
 
 This example is extremely basic, for more complex scenarios see the examples.
-!*/
+*/
 
 use std::{any, error::Error as StdError, fmt, io, str::FromStr};
 
