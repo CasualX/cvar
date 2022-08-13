@@ -4,25 +4,117 @@ Interact with the configuration variables.
 The design of this library makes recursive depth-first pre-order traversal the only feasable method to walk the cvars.
 
 This trade-off allows the hierarchy to be constructed lazily with very convenient stack-allocated resources.
-!*/
+*/
 
 use super::*;
 
+/// Pokes the cvar tree.
+///
+/// Returns `false` if there was an error, the path does not exist or the args were not valid.
+///
+/// This function combines the behavior of [`get`], [`set`], and [`invoke`].
+pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, console: &mut dyn IConsole) -> bool {
+	let mut result = false;
+	if path.len() > 0 {
+		if !find(root, path, |node| {
+			match node.as_node() {
+				Node::Prop(prop) => {
+					if let Some(val) = args {
+						match prop.set(val) {
+							Ok(()) => {
+								let value = prop.get();
+								// cvar.prop is "true"
+								let _ = writeln!(console, "{path} is {value:?}");
+								result = true;
+							},
+							Err(err) => {
+								// error: cvar.prop "true": not a number
+								let _ = writeln!(console, "error: {path} {val:?}: {err}");
+							},
+						}
+					}
+					else {
+						let value = prop.get();
+						// cvar.prop is "true"
+						let _ = writeln!(console, "{path} is {value:?}");
+						result = true;
+					}
+				},
+				Node::List(list) => {
+					_print_nodes(list.as_ivisit(), Some(path), console);
+					result = true;
+				},
+				Node::Action(act) => {
+					act.invoke(args.unwrap_or(""), console);
+					result = true;
+				},
+			}
+		}) {
+			let _ = writeln!(console, "unknown: {path}");
+		}
+	}
+	else {
+		_print_nodes(root, None, console);
+		result = true;
+	}
+	result
+}
+
+fn _print_node(node: &mut dyn INode, path: Option<&str>, console: &mut dyn IConsole) -> fmt::Result {
+	if let Some(path) = path {
+		console.write_str(path)?;
+		console.write_str(".")?;
+	}
+	match node.as_node() {
+		Node::Prop(prop) => {
+			let value = prop.get();
+			let name = prop.name();
+			write!(console, "{name} is {value:?}")?;
+		},
+		Node::List(list) => {
+			let name = list.name();
+			console.write_str(name)?;
+			console.write_str("...")?;
+		},
+		Node::Action(act) => {
+			let name = act.name();
+			console.write_str(name)?;
+		},
+	}
+	console.write_str("\n")?;
+	Ok(())
+}
+fn _print_nodes(root: &mut dyn IVisit, path: Option<&str>, console: &mut dyn IConsole) {
+	root.visit(&mut move |node| {
+		let _ = _print_node(node, path, console);
+	});
+}
+
 //----------------------------------------------------------------
 
-/// Sets a property its value.
+/// Sets a property's value.
+///
+/// If the path is an action it is invoked with the value as the argument.
 #[inline]
 pub fn set(root: &mut dyn IVisit, path: &str, val: &str) -> BoxResult<bool> {
 	let mut result = Ok(false);
 	find(root, path, |node| {
-		if let Node::Prop(prop) = node.as_node() {
-			result = prop.set(val).map(|_| true);
+		match node.as_node() {
+			Node::Prop(prop) => {
+				result = prop.set(val).map(|_| true);
+			},
+			Node::List(_) => {},
+			Node::Action(act) => {
+				act.invoke(val, &mut NullConsole);
+			},
 		}
 	});
 	result
 }
 
-/// Gets a property its value.
+/// Gets a property's value.
+///
+/// Returns `None` if the path does not lead to a property.
 #[inline]
 pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 	let mut result = None;
@@ -37,6 +129,7 @@ pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 /// Resets properties to their default.
 ///
 /// Given a list node will reset all its children to their default. Ignores action nodes.
+#[inline]
 pub fn reset(root: &mut dyn IVisit, path: &str) -> bool {
 	find(root, path, |node| {
 		match node.as_node() {
@@ -47,6 +140,7 @@ pub fn reset(root: &mut dyn IVisit, path: &str) -> bool {
 	})
 }
 /// Resets all properties to their default.
+#[inline]
 pub fn reset_all(root: &mut dyn IVisit) {
 	root.visit(&mut |node| {
 		match node.as_node() {
@@ -55,6 +149,21 @@ pub fn reset_all(root: &mut dyn IVisit) {
 			Node::Action(_) => (),
 		}
 	});
+}
+
+/// Lists all properties and actions in the visitor.
+#[inline]
+pub fn print(root: &mut dyn IVisit, path: &str, console: &mut dyn IConsole) {
+	if path.len() > 0 {
+		if !find(root, path, |node| {
+			let _ = _print_node(node, Some(path), console);
+		}) {
+			let _ = writeln!(console, "unknown: {path}");
+		}
+	}
+	else {
+		_print_nodes(root, None, console);
+	}
 }
 
 //----------------------------------------------------------------
@@ -76,6 +185,7 @@ enum ComparePath<'a> {
 	Part(&'a str),
 }
 impl<'a> ComparePath<'a> {
+	#[inline]
 	fn cmp(path: &'a str, name: &str) -> ComparePath<'a> {
 		match path.as_bytes().get(name.len()) {
 			Some(&b'.') => {
@@ -125,6 +235,7 @@ fn test_compare_id() {
 pub fn find<F: FnMut(&mut dyn INode)>(root: &mut dyn IVisit, path: &str, mut f: F) -> bool {
 	find_rec(root, path, &mut f)
 }
+#[inline]
 fn find_rec(list: &mut dyn IVisit, path: &str, f: &mut dyn FnMut(&mut dyn INode)) -> bool {
 	let mut found = false;
 	list.visit(&mut |node| {
@@ -150,6 +261,7 @@ pub fn walk<F: FnMut(&str, &mut dyn INode)>(root: &mut dyn IVisit, mut f: F) {
 	let mut path = String::new();
 	walk_rec(root, &mut path, &mut f);
 }
+#[inline]
 fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &mut dyn INode)) {
 	list.visit(&mut |node| {
 		// Construct the path

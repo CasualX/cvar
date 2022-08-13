@@ -1,6 +1,6 @@
 /*!
 This example demonstrates more complex nesting techniques.
-!*/
+*/
 
 #[derive(Default)]
 struct Foo {
@@ -13,7 +13,7 @@ struct Foo {
 impl Foo {
 	fn before_int_changed(&mut self, _args: &str, console: &mut dyn cvar::IConsole) {
 		self.string = self.int.to_string();
-		let _ = writeln!(console, "Before int has changed!");
+		let _ = writeln!(console, "Before int is changed!");
 	}
 	fn after_float_changed(&mut self, _args: &str, console: &mut dyn cvar::IConsole) {
 		self.string = self.float.to_string();
@@ -48,8 +48,6 @@ fn main() {
 	let mut nested = Nested::default();
 
 	// This property appears nested but is set in the parent context
-	// Note that `set` won't invoke actions and therefore change callbacks won't be called
-	// To invoke change callbacks implement this set operation yourself (see below)
 	cvar::console::set(&mut nested, "foo.bool", "true").unwrap();
 	assert!(nested.boolean);
 
@@ -64,49 +62,8 @@ fn main() {
 		}
 
 		// Crude command line parsing
-		let line = line.trim();
-		match line.split_ascii_whitespace().next() {
-			// Find the node the user wants to interact with
-			Some(path) => {
-				let args = line[path.len()..].trim_start();
-				if !cvar::console::find(&mut nested, path, |node| {
-					match node.as_node() {
-						cvar::Node::Prop(prop) => {
-							// If we passed any arguments, try to set the value
-							if args.len() > 0 {
-								if let Err(err) = prop.set(args) {
-									println!("Cannot parse `{}`: {}.", args, err);
-								}
-							}
-							// In any case print the value the prop currently has
-							println!("{} `{}`", path, prop.get());
-						},
-						cvar::Node::Action(act) => {
-							// Redirect to stdout
-							let mut console = cvar::IoConsole::stdout();
-							act.invoke(args, &mut console);
-						},
-						cvar::Node::List(_) => {},
-					}
-				}) {
-					println!("Cannot find `{}`", path);
-				}
-			},
-			// Print the tree of props if empty
-			None => {
-				cvar::console::walk(&mut nested, |path, node| {
-					match node.as_node() {
-						cvar::Node::Prop(prop) => {
-							println!("{} `{}`", path, prop.get());
-						},
-						cvar::Node::List(_list) => (),
-						cvar::Node::Action(_act) => {
-							println!("{}", path);
-						},
-					}
-				});
-			},
-		}
+		let (path, args) = split_line(&line);
+		cvar::console::poke(&mut nested, path, args, &mut cvar::IoConsole::stdout());
 	}
 }
 
@@ -116,4 +73,11 @@ pub fn read_line(line: &mut String) -> bool {
 	print!(">>> ");
 	let _ = io::Write::flush(&mut io::stdout());
 	return io::stdin().read_line(line).is_err() || line.is_empty();
+}
+
+pub fn split_line(line: &str) -> (&str, Option<&str>) {
+	let line = line.trim_start();
+	let path = line.split_ascii_whitespace().next().unwrap_or("");
+	let args = &line[path.len()..].trim();
+	(path, if args.len() == 0 { None } else { Some(args) })
 }

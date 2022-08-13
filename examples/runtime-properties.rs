@@ -1,6 +1,6 @@
 /*!
 This example demonstrates how properties can be created and destroyed at runtime.
-!*/
+*/
 
 #[derive(Debug, Default)]
 struct RuntimeProps {
@@ -87,49 +87,8 @@ fn main() {
 		}
 
 		// Crude command line parsing
-		let line = line.trim();
-		match line.split_ascii_whitespace().next() {
-			// Find the node the user wants to interact with
-			Some(path) => {
-				let args = line[path.len()..].trim_start();
-				if !cvar::console::find(&mut runtime_props, path, |node| {
-					match node.as_node() {
-						cvar::Node::Prop(prop) => {
-							// If we passed any arguments, try to set the value
-							if args.len() > 0 {
-								if let Err(err) = prop.set(args) {
-									println!("Cannot parse `{}`: {}.", args, err);
-								}
-							}
-							// In any case print the value the prop currently has
-							println!("{} `{}`", path, prop.get());
-						},
-						cvar::Node::Action(act) => {
-							// Redirect output to stdout
-							let mut console = cvar::IoConsole::stdout();
-							act.invoke(args, &mut console);
-						},
-						cvar::Node::List(_) => {},
-					}
-				}) {
-					println!("Cannot find `{}`", path);
-				}
-			},
-			None => {
-				// Print the tree of props if empty
-				cvar::console::walk(&mut runtime_props, |path, node| {
-					match node.as_node() {
-						cvar::Node::Prop(prop) => {
-							println!("{} `{}`", path, prop.get());
-						},
-						cvar::Node::List(_list) => (),
-						cvar::Node::Action(_act) => {
-							println!("{}", path);
-						},
-					}
-				});
-			},
-		}
+		let (path, args) = split_line(&line);
+		cvar::console::poke(&mut runtime_props, path, args, &mut cvar::IoConsole::stdout());
 	}
 }
 
@@ -139,4 +98,11 @@ pub fn read_line(line: &mut String) -> bool {
 	print!(">>> ");
 	let _ = io::Write::flush(&mut io::stdout());
 	return io::stdin().read_line(line).is_err() || line.is_empty();
+}
+
+pub fn split_line(line: &str) -> (&str, Option<&str>) {
+	let line = line.trim_start();
+	let path = line.split_ascii_whitespace().next().unwrap_or("");
+	let args = &line[path.len()..].trim();
+	(path, if args.len() == 0 { None } else { Some(args) })
 }

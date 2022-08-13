@@ -1,6 +1,6 @@
 /*!
 The example from the readme.
-!*/
+*/
 
 pub struct ProgramState {
 	number: i32,
