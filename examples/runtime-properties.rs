@@ -7,9 +7,10 @@ struct RuntimeProps {
 	// Store the list of runtime properties somewhere
 	props: Vec<Box<dyn cvar::IProperty>>,
 }
+
 impl RuntimeProps {
 	// Action to create new properties
-	fn create(&mut self, args: &str, console: &mut dyn cvar::IConsole) {
+	fn create(&mut self, args: &str, writer: &mut dyn cvar::IWrite) {
 		// Crude argument parsing
 		let args = args.trim();
 		let first = args.split_ascii_whitespace().next().unwrap_or("");
@@ -17,7 +18,7 @@ impl RuntimeProps {
 		let second = args.split_ascii_whitespace().next().unwrap_or("");
 		let third = args[second.len()..].trim_start();
 		if first.len() == 0 {
-			let _ = writeln!(console, "Invalid arguments! expecting <type> <name> <value>");
+			let _ = writeln!(writer, "Invalid arguments! expecting <type> <name> <value>");
 			return;
 		}
 		match first {
@@ -36,23 +37,24 @@ impl RuntimeProps {
 				self.props.push(Box::new(prop));
 			},
 			_ => {
-				let _ = writeln!(console, "Invalid type! supports string, int or float");
+				let _ = writeln!(writer, "Invalid type! supports string, int or float");
 			},
 		}
 	}
 	// Action to remove properties
-	fn destroy(&mut self, args: &str, console: &mut dyn cvar::IConsole) {
+	fn destroy(&mut self, args: &str, writer: &mut dyn cvar::IWrite) {
 		if args.len() == 0 {
-			let _ = writeln!(console, "Invalid arguments! expecting the name of the property to remove");
+			let _ = writeln!(writer, "Invalid arguments! expecting the name of the property to remove");
 			return;
 		}
 		self.props.retain(|prop| prop.name() != args);
 	}
 }
+
 impl cvar::IVisit for RuntimeProps {
 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-		f(&mut cvar::Action("create!", |args, console| self.create(args, console)));
-		f(&mut cvar::Action("destroy!", |args, console| self.destroy(args, console)));
+		f(&mut cvar::Action("create!", |args, writer| self.create(args, writer)));
+		f(&mut cvar::Action("destroy!", |args, writer| self.destroy(args, writer)));
 		for prop in &mut self.props {
 			f(prop.as_inode());
 		}
@@ -63,16 +65,16 @@ fn main() {
 	let mut runtime_props = RuntimeProps::default();
 
 	// Create some runtime props
-	let mut output = String::new();
-	cvar::console::invoke(&mut runtime_props, "create!", "float f 3.141592", &mut output);
-	cvar::console::invoke(&mut runtime_props, "create!", "string s Hello World!", &mut output);
-	cvar::console::invoke(&mut runtime_props, "create!", "int i 42", &mut output);
+	let mut writer = String::new();
+	cvar::console::invoke(&mut runtime_props, "create!", "float f 3.141592", &mut writer);
+	cvar::console::invoke(&mut runtime_props, "create!", "string s Hello World!", &mut writer);
+	cvar::console::invoke(&mut runtime_props, "create!", "int i 42", &mut writer);
 
 	// Inspect the underlying props
 	assert_eq!(runtime_props.props.len(), 3);
-	assert_eq!(runtime_props.props[0].get(), "3.141592");
-	assert_eq!(runtime_props.props[1].get(), "Hello World!");
-	assert_eq!(runtime_props.props[2].get(), "42");
+	assert_eq!(runtime_props.props[0].get_value().to_string(), "3.141592");
+	assert_eq!(runtime_props.props[1].get_value().to_string(), "Hello World!");
+	assert_eq!(runtime_props.props[2].get_value().to_string(), "42");
 
 	println!("Hit enter to list all the cvars and their values.");
 	println!("Assign value to cvar with `<name> <value>`.");
@@ -88,7 +90,7 @@ fn main() {
 
 		// Crude command line parsing
 		let (path, args) = split_line(&line);
-		cvar::console::poke(&mut runtime_props, path, args, &mut cvar::IoConsole::stdout());
+		cvar::console::poke(&mut runtime_props, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
 

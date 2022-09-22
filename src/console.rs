@@ -13,106 +13,114 @@ use super::*;
 /// Returns `false` if there was an error, the path does not exist or the args were not valid.
 ///
 /// This function combines the behavior of [`get`], [`set`], and [`invoke`].
-pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, console: &mut dyn IConsole) -> bool {
+pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, writer: &mut dyn IWrite) -> bool {
 	let mut result = false;
 	if path.len() > 0 {
 		if !find(root, path, |node| {
 			match node.as_node() {
 				Node::Prop(prop) => {
 					if let Some(val) = args {
-						match prop.set(val) {
-							Ok(()) => {
-								let value = prop.get();
-								// cvar.prop is "true"
-								let _ = writeln!(console, "{path} is {value:?}");
-								result = true;
-							},
-							Err(err) => {
-								// error: cvar.prop "true": not a number
-								let _ = writeln!(console, "error: {path} {val:?}: {err}");
-							},
+						let mut err = String::new();
+						if prop.set(val, &mut err) {
+							let value = prop.get_value().to_string();
+							// cvar.prop is "true"
+							let _ = writeln!(writer, "{path} is {value:?}");
+							result = true;
+						}
+						else {
+							// error: cvar.prop "true": not a number
+							let _ = writeln!(writer, "error: {path} {val:?}: {err}");
 						}
 					}
 					else {
-						let value = prop.get();
+						let value = prop.get_value().to_string();
 						// cvar.prop is "true"
-						let _ = writeln!(console, "{path} is {value:?}");
+						let _ = writeln!(writer, "{path} is {value:?}");
 						result = true;
 					}
 				},
 				Node::List(list) => {
-					_print_nodes(list.as_ivisit(), Some(path), console);
+					_print_nodes(list.as_ivisit(), Some(path), writer);
 					result = true;
 				},
 				Node::Action(act) => {
-					act.invoke(args.unwrap_or(""), console);
+					act.invoke(args.unwrap_or(""), writer);
 					result = true;
 				},
 			}
 		}) {
-			let _ = writeln!(console, "unknown: {path}");
+			let _ = writeln!(writer, "unknown: {path}");
 		}
 	}
 	else {
-		_print_nodes(root, None, console);
+		_print_nodes(root, None, writer);
 		result = true;
 	}
 	result
 }
 
-fn _print_node(node: &mut dyn INode, path: Option<&str>, console: &mut dyn IConsole) -> fmt::Result {
+fn _print_node(node: &mut dyn INode, path: Option<&str>, writer: &mut dyn IWrite) -> fmt::Result {
 	if let Some(path) = path {
-		console.write_str(path)?;
-		console.write_str(".")?;
+		writer.write_str(path)?;
+		writer.write_str(".")?;
 	}
 	match node.as_node() {
 		Node::Prop(prop) => {
-			let value = prop.get();
+			let value = prop.get_value().to_string();
 			let name = prop.name();
-			write!(console, "{name} is {value:?}")?;
+			write!(writer, "{name} is {value:?}")?;
 		},
 		Node::List(list) => {
 			let name = list.name();
-			console.write_str(name)?;
-			console.write_str("...")?;
+			writer.write_str(name)?;
+			writer.write_str("...")?;
 		},
 		Node::Action(act) => {
 			let name = act.name();
-			console.write_str(name)?;
+			writer.write_str(name)?;
 		},
 	}
-	console.write_str("\n")?;
+	writer.write_str("\n")?;
 	Ok(())
 }
-fn _print_nodes(root: &mut dyn IVisit, path: Option<&str>, console: &mut dyn IConsole) {
+fn _print_nodes(root: &mut dyn IVisit, path: Option<&str>, writer: &mut dyn IWrite) {
 	root.visit(&mut move |node| {
-		let _ = _print_node(node, path, console);
+		let _ = _print_node(node, path, writer);
 	});
 }
 
 //----------------------------------------------------------------
 
-/// Sets a property's value.
+/// Sets a property's value parsed from a string.
 ///
 /// If the path is an action it is invoked with the value as the argument.
 #[inline]
-pub fn set(root: &mut dyn IVisit, path: &str, val: &str) -> BoxResult<bool> {
-	let mut result = Ok(false);
-	find(root, path, |node| {
+pub fn set(root: &mut dyn IVisit, path: &str, val: &str, writer: &mut dyn IWrite) -> bool {
+	let mut result = false;
+	if !find(root, path, |node| {
 		match node.as_node() {
 			Node::Prop(prop) => {
-				result = prop.set(val).map(|_| true);
+				let mut err = String::new();
+				if prop.set(val, &mut err) {
+					result = true;
+				}
+				else {
+					// error: cvar.prop "true": not a number
+					let _ = writeln!(writer, "error: {path} {val:?}: {err}");
+				}
 			},
 			Node::List(_) => {},
 			Node::Action(act) => {
-				act.invoke(val, &mut NullConsole);
+				act.invoke(val, writer);
 			},
 		}
-	});
+	}) {
+		let _ = writeln!(writer, "unknown: {path}");
+	}
 	result
 }
 
-/// Gets a property's value.
+/// Gets a property's value as a string.
 ///
 /// Returns `None` if the path does not lead to a property.
 #[inline]
@@ -120,10 +128,55 @@ pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 	let mut result = None;
 	find(root, path, |node| {
 		if let Node::Prop(prop) = node.as_node() {
-			result = Some(prop.get());
+			result = Some(prop.get_value().to_string());
 		}
 	});
 	result
+}
+
+/// Sets a property's value directly.
+///
+/// If the path is an action it is invoked with the value as the argument.
+#[inline]
+pub fn set_value(root: &mut dyn IVisit, path: &str, val: &dyn IValue, writer: &mut dyn IWrite) -> bool {
+	let mut result = false;
+	if !find(root, path, |node| {
+		match node.as_node() {
+			Node::Prop(prop) => {
+				let mut err = String::new();
+				if prop.set_value(val, &mut err) {
+					result = true;
+				}
+				else {
+					// error: cvar.prop "true": not a number
+					let _ = writeln!(writer, "error: {path} {val:?}: {err}");
+				}
+			},
+			Node::List(_) => {},
+			Node::Action(act) => {
+				act.invoke(&val.to_string(), writer);
+			},
+		}
+	}) {
+		let _ = writeln!(writer, "unknown: {path}");
+	}
+	result
+}
+
+/// Gets a property's value directly.
+///
+/// Returns `None` if the path does not lead to a property of the expected type.
+#[inline]
+pub fn get_value<T: Clone + 'static>(root: &mut dyn IVisit, path: &str) -> Option<T> {
+	let mut value = None;
+	find(root, path, |node| {
+		if let Node::Prop(prop) = node.as_node() {
+			if let Some(any) = prop.get_value().downcast_ref::<T>() {
+				value = Some(any.clone());
+			}
+		}
+	});
+	value
 }
 
 /// Resets properties to their default.
@@ -153,16 +206,16 @@ pub fn reset_all(root: &mut dyn IVisit) {
 
 /// Lists all properties and actions in the visitor.
 #[inline]
-pub fn print(root: &mut dyn IVisit, path: &str, console: &mut dyn IConsole) {
+pub fn print(root: &mut dyn IVisit, path: &str, writer: &mut dyn IWrite) {
 	if path.len() > 0 {
 		if !find(root, path, |node| {
-			let _ = _print_node(node, Some(path), console);
+			let _ = _print_node(node, Some(path), writer);
 		}) {
-			let _ = writeln!(console, "unknown: {path}");
+			let _ = writeln!(writer, "unknown: {path}");
 		}
 	}
 	else {
-		_print_nodes(root, None, console);
+		_print_nodes(root, None, writer);
 	}
 }
 
@@ -284,13 +337,15 @@ fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &m
 //----------------------------------------------------------------
 
 /// Invokes an action.
+///
+/// Returns false if no action node was found at the given path.
 #[inline]
-pub fn invoke(root: &mut dyn IVisit, path: &str, args: &str, console: &mut dyn IConsole) -> bool {
+pub fn invoke(root: &mut dyn IVisit, path: &str, args: &str, writer: &mut dyn IWrite) -> bool {
 	let mut found = false;
 	find(root, path, |node| {
 		if let Node::Action(act) = node.as_node() {
 			found = true;
-			act.invoke(args, console);
+			act.invoke(args, writer);
 		}
 	});
 	found
