@@ -221,6 +221,14 @@ pub fn print(root: &mut dyn IVisit, path: &str, writer: &mut dyn IWrite) {
 
 //----------------------------------------------------------------
 
+#[inline]
+fn split_at<'a>(path: &'a str, index: usize) -> Option<(&str, &u8, &str)> {
+	let at = path.as_bytes().get(index)?;
+	let prefix = path.get(..index)?;
+	let suffix = path.get(index + 1..)?;
+	Some((prefix, at, suffix))
+}
+
 /// Compares a path to a node name.
 ///
 /// * `ComparePath::True` if they compare equal.
@@ -240,10 +248,10 @@ enum ComparePath<'a> {
 impl<'a> ComparePath<'a> {
 	#[inline]
 	fn cmp(path: &'a str, name: &str) -> ComparePath<'a> {
-		match path.as_bytes().get(name.len()) {
-			Some(&b'.') => {
-				if &path.as_bytes()[..name.len()] == name.as_bytes() {
-					ComparePath::Part(&path[name.len() + 1..])
+		match split_at(path, name.len()) {
+			Some((prefix, &b'.', suffix)) => {
+				if prefix == name {
+					ComparePath::Part(suffix)
 				}
 				else {
 					ComparePath::False
