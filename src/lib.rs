@@ -57,7 +57,7 @@ assert_eq!(writer, "Hello, World!\n");
 This example is extremely basic, for more complex scenarios see the examples.
 */
 
-use std::{any, error::Error as StdError, fmt, io, str::FromStr};
+use std::{any, error::Error as StdError, fmt, num, io, str::FromStr};
 
 pub mod console;
 
@@ -153,6 +153,111 @@ impl<T: 'static + Sized> IValue for T
 	fn as_any(&self) -> &dyn any::Any {
 		self
 	}
+}
+
+//----------------------------------------------------------------
+
+/// Format the value as hexadecimal.
+#[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
+#[repr(transparent)]
+pub struct HexValue<T>(pub T);
+
+impl<T> HexValue<T> {
+	/// Transmutes to a `&HexValue<T>`.
+	#[inline]
+	pub fn from_ref(value: &T) -> &Self {
+		unsafe { &*(value as *const T as *const Self) }
+	}
+	/// Transmutes to a `&mut HexValue<T>`.
+	#[inline]
+	pub fn from_mut(value: &mut T) -> &mut Self {
+		unsafe { &mut *(value as *mut T as *mut Self) }
+	}
+}
+
+impl<T> From<T> for HexValue<T> {
+	#[inline]
+	fn from(value: T) -> Self {
+		Self(value)
+	}
+}
+impl<T> AsRef<T> for HexValue<T> {
+	#[inline]
+	fn as_ref(&self) -> &T {
+		&self.0
+	}
+}
+impl<T> AsMut<T> for HexValue<T> {
+	#[inline]
+	fn as_mut(&mut self) -> &mut T {
+		&mut self.0
+	}
+}
+
+macro_rules! impl_HexValue {
+	($ty:ty) => {
+		impl fmt::Display for HexValue<$ty> {
+			fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+				if self.0 == 0 {
+					f.write_str("0")
+				}
+				else {
+					write!(f, "{:#x}", self.0)
+				}
+			}
+		}
+
+		impl FromStr for HexValue<$ty> {
+			type Err = num::ParseIntError;
+			fn from_str(mut s: &str) -> Result<Self, num::ParseIntError> {
+				let mut not = false;
+				if let Some(rest) = s.strip_prefix("!") {
+					s = rest;
+					not = true;
+				}
+
+				let mut negate = false;
+				if let Some(rest) = s.strip_prefix("-") {
+					s = rest;
+					negate = true;
+				}
+
+				let mut radix = 10;
+				if let Some(rest) = s.strip_prefix("0x") {
+					s = rest;
+					radix = 16;
+				}
+
+				let mut value = <$ty>::from_str_radix(s, radix)?;
+
+				if negate {
+					value = value.wrapping_neg();
+				}
+
+				if not {
+					value = !value;
+				}
+
+				Ok(HexValue(value))
+			}
+		}
+	};
+}
+
+impl_HexValue!(u64);
+impl_HexValue!(u32);
+impl_HexValue!(u16);
+impl_HexValue!(u8);
+
+impl_HexValue!(i64);
+impl_HexValue!(i32);
+impl_HexValue!(i16);
+impl_HexValue!(i8);
+
+#[allow(non_snake_case)]
+#[inline]
+pub fn HexProp<'a, 'x, T>(name: &'a str, value: &'x mut T, default: &'a T) -> crate::Property<'a, 'x, HexValue<T>> {
+	crate::Property(name, HexValue::from_mut(value), HexValue::from_ref(default))
 }
 
 //----------------------------------------------------------------
