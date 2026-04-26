@@ -1,4 +1,4 @@
-name: CI
+name: Check
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  ci:
+  check:
     runs-on: ubuntu-latest
     strategy:
       matrix:

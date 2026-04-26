@@ -4,7 +4,7 @@ Configuration Variables
 [![MIT License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![crates.io](https://img.shields.io/crates/v/cvar.svg)](https://crates.io/crates/cvar)
 [![docs.rs](https://docs.rs/cvar/badge.svg)](https://docs.rs/cvar)
-[![Build status](https://github.com/CasualX/cvar/workflows/CI/badge.svg)](https://github.com/CasualX/cvar/actions)
+[![Build status](https://github.com/CasualX/cvar/workflows/Check/badge.svg)](https://github.com/CasualX/cvar/actions)
 
 Configure program state through stringly typed API.
 
@@ -31,7 +31,7 @@ In your Cargo.toml:
 
 ```text
 [dependencies]
-cvar = "0.3"
+cvar = "0.4"
 ```
 
 Examples

@@ -61,6 +61,9 @@ use std::{any, error::Error as StdError, fmt, num, io, str::FromStr};
 
 pub mod console;
 
+mod enums;
+pub use enums::ParseEnumError;
+
 #[cfg(test)]
 mod tests;
 

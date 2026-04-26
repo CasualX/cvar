@@ -222,7 +222,7 @@ pub fn print(root: &mut dyn IVisit, path: &str, writer: &mut dyn IWrite) {
 //----------------------------------------------------------------
 
 #[inline]
-fn split_at<'a>(path: &'a str, index: usize) -> Option<(&str, &u8, &str)> {
+fn split_at(path: &str, index: usize) -> Option<(&str, &u8, &str)> {
 	let at = path.as_bytes().get(index)?;
 	let prefix = path.get(..index)?;
 	let suffix = path.get(index + 1..)?;
