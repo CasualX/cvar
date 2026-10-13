@@ -1,6 +1,4 @@
-/*!
-This example demonstrates more complex nesting techniques.
-*/
+//! This example demonstrates more complex nesting techniques.
 
 #[derive(Default)]
 struct Foo {
@@ -51,7 +49,7 @@ fn main() {
 	let mut nested = Nested::default();
 
 	// This property appears nested but is set in the parent context
-	cvar::console::set_value(&mut nested, "foo.bool", &true, &mut cvar::NullWriter);
+	cvar::repl::set_value(&mut nested, "foo.bool", &true, &mut cvar::NullWriter);
 	assert!(nested.boolean);
 
 	println!("Hit enter to list all the cvars and their values.");
@@ -66,7 +64,7 @@ fn main() {
 
 		// Crude command line parsing
 		let (path, args) = split_line(&line);
-		cvar::console::poke(&mut nested, path, args, &mut cvar::IoWriter::stdout());
+		cvar::repl::poke(&mut nested, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
 
@@ -75,12 +73,12 @@ pub fn read_line(line: &mut String) -> bool {
 	use std::io;
 	print!(">>> ");
 	let _ = io::Write::flush(&mut io::stdout());
-	return io::stdin().read_line(line).is_err() || line.is_empty();
+	io::stdin().read_line(line).is_err() || line.is_empty()
 }
 
 pub fn split_line(line: &str) -> (&str, Option<&str>) {
-	let line = line.trim_start();
+	let line = line.trim_ascii_start();
 	let path = line.split_ascii_whitespace().next().unwrap_or("");
-	let args = &line[path.len()..].trim();
-	(path, if args.len() == 0 { None } else { Some(args) })
+	let args = line[path.len()..].trim_ascii();
+	(path, if args.is_empty() { None } else { Some(args) })
 }

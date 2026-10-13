@@ -1,19 +1,34 @@
 [package]
 name = "cvar"
-version = "0.4.2"
-edition = "2021"
-authors = ["Casper <CasualX@users.noreply.github.com>"]
-
-description = "Configuration variables."
-
-documentation = "https://docs.rs/cvar"
-repository = "https://github.com/CasualX/cvar"
-
-readme = "readme.md"
-
-keywords = ["config", "var", "dvar", "convar"]
-
+version = "0.5.0"
+edition = "2024"
+rust-version = "1.86"
 license = "MIT"
 
+authors = ["Casper <CasualX@users.noreply.github.com>"]
+description = "Configuration variables and actions for interactive access to live application state."
+documentation = "https://docs.rs/cvar"
+repository = "https://github.com/CasualX/cvar"
+readme = "readme.md"
+keywords = ["dvar", "console", "repl", "gamedev", "convar"]
+categories = ["config", "game-development", "command-line-interface"]
+
 [features]
+default = ["std"]
+std = []
 type_name = []
+
+[[example]]
+name = "program-state"
+required-features = ["std"]
+
+[[example]]
+name = "nesting-techniques"
+required-features = ["std"]
+
+[[example]]
+name = "runtime-properties"
+required-features = ["std"]
+
+[package.metadata.docs.rs]
+all-features = true

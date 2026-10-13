@@ -8,6 +8,23 @@ Configuration Variables
 
 Configure program state through stringly typed API.
 
+Demonstration
+-------------
+
+These terminal recordings show how properties and actions interact with live program state.
+
+### Properties and actions
+
+![ProgramState: read and update properties, invoke an action, and handle invalid input.](docs/program-state.gif)
+
+### Scopes and action aliases
+
+![Nested scopes: list properties from both scopes and observe actions before and after assignments.](docs/nesting-techniques.gif)
+
+### Runtime properties
+
+![Runtime properties: create a player scope, update its values, and remove properties.](docs/runtime-properties.gif)
+
 Introduction
 ------------
 
@@ -31,15 +48,25 @@ In your Cargo.toml:
 
 ```text
 [dependencies]
-cvar = "0.4"
+cvar = "0.5"
 ```
+
+For `no_std` applications, disable the default `std` feature:
+
+```toml
+[dependencies]
+cvar = { version = "0.5", default-features = false }
+```
+
+The crate uses `alloc` for strings, owned properties, and REPL operations.
+The optional `type_name` feature also works without `std`.
 
 Examples
 --------
 
 For more examples on specific topics and techniques, see [the examples](examples).
 
-Try this example out locally with `cargo run --example readme-example`.
+The following code explains how the ProgramState demonstration is implemented.
 
 ```rust
 pub struct ProgramState {
@@ -85,9 +112,10 @@ let mut program_state = ProgramState {
 Given unique access to the program state...
 
 ```rust
-assert_eq!(cvar::console::get(&mut program_state, "number").unwrap(), "42");
+assert_eq!(cvar::repl::get(&mut program_state, "number").unwrap(), "42");
 
-cvar::console::set(&mut program_state, "number", "13").unwrap();
+let mut writer = String::new();
+assert!(cvar::repl::set(&mut program_state, "number", "13", &mut writer));
 assert_eq!(program_state.number, 13);
 ```
 
@@ -95,7 +123,7 @@ Get or set properties by their textual names and values through a console like i
 
 ```rust
 let mut writer = String::new();
-cvar::console::invoke(&mut program_state, "poke!", "the value is", &mut writer);
+cvar::repl::invoke(&mut program_state, "poke!", "the value is", &mut writer);
 assert_eq!(program_state.text, "the value is: 13");
 ```
 
@@ -124,8 +152,6 @@ Future work
 -----------
 
 Implement autocomplete for identifiers and suggestions for property values and actions.
-
-Implement helpers for enums and enum flags support.
 
 License
 -------

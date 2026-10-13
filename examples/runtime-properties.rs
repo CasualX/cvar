@@ -1,6 +1,4 @@
-/*!
-This example demonstrates how properties can be created and destroyed at runtime.
-*/
+//! This example demonstrates how properties can be created and destroyed at runtime.
 
 #[derive(Debug, Default)]
 struct RuntimeProps {
@@ -17,7 +15,7 @@ impl RuntimeProps {
 		let args = args[first.len()..].trim_start();
 		let second = args.split_ascii_whitespace().next().unwrap_or("");
 		let third = args[second.len()..].trim_start();
-		if first.len() == 0 {
+		if first.is_empty() || second.is_empty() {
 			let _ = writeln!(writer, "Invalid arguments! expecting <type> <name> <value>");
 			return;
 		}
@@ -27,12 +25,24 @@ impl RuntimeProps {
 				self.props.push(Box::new(prop));
 			},
 			"int" => {
-				let value: i32 = third.parse().unwrap();
+				let value: i32 = match third.parse() {
+					Ok(value) => value,
+					Err(err) => {
+						let _ = writeln!(writer, "Invalid int value: {err}");
+						return;
+					},
+				};
 				let prop = cvar::OwnedProp(second.into(), value, value);
 				self.props.push(Box::new(prop));
 			},
 			"float" => {
-				let value: f32 = third.parse().unwrap();
+				let value: f32 = match third.parse() {
+					Ok(value) => value,
+					Err(err) => {
+						let _ = writeln!(writer, "Invalid float value: {err}");
+						return;
+					},
+				};
 				let prop = cvar::OwnedProp(second.into(), value, value);
 				self.props.push(Box::new(prop));
 			},
@@ -43,7 +53,7 @@ impl RuntimeProps {
 	}
 	// Action to remove properties
 	fn destroy(&mut self, args: &str, writer: &mut dyn cvar::IWrite) {
-		if args.len() == 0 {
+		if args.is_empty() {
 			let _ = writeln!(writer, "Invalid arguments! expecting the name of the property to remove");
 			return;
 		}
@@ -56,7 +66,7 @@ impl cvar::IVisit for RuntimeProps {
 		f(&mut cvar::Action("create!", |args, writer| self.create(args, writer)));
 		f(&mut cvar::Action("destroy!", |args, writer| self.destroy(args, writer)));
 		for prop in &mut self.props {
-			f(prop.as_inode());
+			f(prop.as_mut());
 		}
 	}
 }
@@ -66,9 +76,9 @@ fn main() {
 
 	// Create some runtime props
 	let mut writer = String::new();
-	cvar::console::invoke(&mut runtime_props, "create!", "float f 3.141592", &mut writer);
-	cvar::console::invoke(&mut runtime_props, "create!", "string s Hello World!", &mut writer);
-	cvar::console::invoke(&mut runtime_props, "create!", "int i 42", &mut writer);
+	cvar::repl::invoke(&mut runtime_props, "create!", "float f 3.141592", &mut writer);
+	cvar::repl::invoke(&mut runtime_props, "create!", "string s Hello World!", &mut writer);
+	cvar::repl::invoke(&mut runtime_props, "create!", "int i 42", &mut writer);
 
 	// Inspect the underlying props
 	assert_eq!(runtime_props.props.len(), 3);
@@ -79,7 +89,7 @@ fn main() {
 	println!("Hit enter to list all the cvars and their values.");
 	println!("Assign value to cvar with `<name> <value>`.");
 	println!("Create new cvars with `create! <type> <name> <value>`.");
-	println!("Destroy the cvars with `destroy! <name>.");
+	println!("Destroy the cvars with `destroy! <name>`.");
 
 	loop {
 		// Read input from stdin
@@ -90,7 +100,7 @@ fn main() {
 
 		// Crude command line parsing
 		let (path, args) = split_line(&line);
-		cvar::console::poke(&mut runtime_props, path, args, &mut cvar::IoWriter::stdout());
+		cvar::repl::poke(&mut runtime_props, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
 
@@ -99,12 +109,26 @@ pub fn read_line(line: &mut String) -> bool {
 	use std::io;
 	print!(">>> ");
 	let _ = io::Write::flush(&mut io::stdout());
-	return io::stdin().read_line(line).is_err() || line.is_empty();
+	io::stdin().read_line(line).is_err() || line.is_empty()
 }
 
 pub fn split_line(line: &str) -> (&str, Option<&str>) {
 	let line = line.trim_start();
 	let path = line.split_ascii_whitespace().next().unwrap_or("");
-	let args = &line[path.len()..].trim();
-	(path, if args.len() == 0 { None } else { Some(args) })
+	let args = line[path.len()..].trim();
+	(path, if args.is_empty() { None } else { Some(args) })
+}
+
+#[test]
+fn create_rejects_invalid_input() {
+	let mut props = RuntimeProps::default();
+	for args in ["", "int", "int value", "int value invalid", "float value invalid", "string"] {
+		let mut writer = String::new();
+		assert!(cvar::repl::invoke(&mut props, "create!", args, &mut writer));
+		assert!(!writer.is_empty());
+		assert!(props.props.is_empty());
+	}
+	let mut writer = String::new();
+	assert!(cvar::repl::invoke(&mut props, "create!", "int value 42", &mut writer));
+	assert_eq!(cvar::repl::get_value::<i32>(&mut props, "value"), Some(42));
 }

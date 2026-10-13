@@ -1,19 +1,18 @@
-
-use std::{error::Error as StdError, fmt};
+use super::*;
 
 /// Error type for parsing enum variants from strings.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseEnumError {
-	pub enum_name: &'static str,
+	pub ident: &'static str,
 }
 
 impl fmt::Display for ParseEnumError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "invalid {} variant", self.enum_name)
+		write!(f, "invalid {} variant", self.ident)
 	}
 }
 
-impl StdError for ParseEnumError {}
+impl error::Error for ParseEnumError {}
 
 /// Macro to create enums that can be converted to and from strings.
 ///
@@ -48,7 +47,7 @@ impl StdError for ParseEnumError {}
 /// 	mode: TestEnum::First,
 /// };
 /// let mut writer = cvar::NullWriter;
-/// assert!(cvar::console::set(&mut config, "mode", "Third", &mut writer));
+/// assert!(cvar::repl::set(&mut config, "mode", "Third", &mut writer));
 /// assert_eq!(config.mode, TestEnum::Third);
 /// ```
 #[macro_export]
@@ -97,7 +96,7 @@ macro_rules! enum_string {
 						::core::stringify!($variant) => ::core::result::Result::Ok(Self::$variant),
 					)*
 					_ => ::core::result::Result::Err($crate::ParseEnumError {
-						enum_name: ::core::stringify!($name),
+						ident: ::core::stringify!($name),
 					}),
 				}
 			}
