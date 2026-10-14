@@ -6,6 +6,8 @@
 
 use super::*;
 
+pub mod parse;
+
 /// Pokes the cvar tree.
 ///
 /// Returns `false` if there was an error, the path does not exist or the args were not valid.

@@ -62,8 +62,7 @@ fn main() {
 			break;
 		}
 
-		// Crude command line parsing
-		let (path, args) = split_line(&line);
+		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
 		cvar::repl::poke(&mut nested, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
@@ -74,11 +73,4 @@ pub fn read_line(line: &mut String) -> bool {
 	print!(">>> ");
 	let _ = io::Write::flush(&mut io::stdout());
 	io::stdin().read_line(line).is_err() || line.is_empty()
-}
-
-pub fn split_line(line: &str) -> (&str, Option<&str>) {
-	let line = line.trim_ascii_start();
-	let path = line.split_ascii_whitespace().next().unwrap_or("");
-	let args = line[path.len()..].trim_ascii();
-	(path, if args.is_empty() { None } else { Some(args) })
 }

@@ -9,16 +9,12 @@ struct RuntimeProps {
 impl RuntimeProps {
 	// Action to create new properties
 	fn create(&mut self, args: &str, writer: &mut dyn cvar::IWrite) {
-		// Crude argument parsing
-		let args = args.trim();
-		let first = args.split_ascii_whitespace().next().unwrap_or("");
-		let args = args[first.len()..].trim_start();
-		let second = args.split_ascii_whitespace().next().unwrap_or("");
-		let third = args[second.len()..].trim_start();
-		if first.is_empty() || second.is_empty() {
+		let mut args = cvar::repl::parse::split(args.trim_ascii());
+		let (Some(first), Some(second)) = (args.next(), args.next()) else {
 			let _ = writeln!(writer, "Invalid arguments! expecting <type> <name> <value>");
 			return;
-		}
+		};
+		let third = args.remainder().unwrap_or("").trim_ascii_start();
 		match first {
 			"string" => {
 				let prop = cvar::OwnedProp(second.into(), String::from(third), String::from(third));
@@ -53,11 +49,11 @@ impl RuntimeProps {
 	}
 	// Action to remove properties
 	fn destroy(&mut self, args: &str, writer: &mut dyn cvar::IWrite) {
-		if args.is_empty() {
+		let Some(name) = cvar::repl::parse::positional(args, 0) else {
 			let _ = writeln!(writer, "Invalid arguments! expecting the name of the property to remove");
 			return;
-		}
-		self.props.retain(|prop| prop.name() != args);
+		};
+		self.props.retain(|prop| prop.name() != name);
 	}
 }
 
@@ -98,8 +94,7 @@ fn main() {
 			break;
 		}
 
-		// Crude command line parsing
-		let (path, args) = split_line(&line);
+		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
 		cvar::repl::poke(&mut runtime_props, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
@@ -110,13 +105,6 @@ pub fn read_line(line: &mut String) -> bool {
 	print!(">>> ");
 	let _ = io::Write::flush(&mut io::stdout());
 	io::stdin().read_line(line).is_err() || line.is_empty()
-}
-
-pub fn split_line(line: &str) -> (&str, Option<&str>) {
-	let line = line.trim_start();
-	let path = line.split_ascii_whitespace().next().unwrap_or("");
-	let args = line[path.len()..].trim();
-	(path, if args.is_empty() { None } else { Some(args) })
 }
 
 #[test]

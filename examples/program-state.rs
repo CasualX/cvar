@@ -36,10 +36,7 @@ fn main() {
 		if io::stdin().read_line(&mut line).is_err() || line.is_empty() {
 			break;
 		}
-		let line = line.trim_ascii_start();
-		let path = line.split_ascii_whitespace().next().unwrap_or("");
-		let args = line[path.len()..].trim_ascii();
-		let args = if args.is_empty() { None } else { Some(args) };
+		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
 		cvar::repl::poke(&mut program_state, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
