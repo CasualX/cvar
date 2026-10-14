@@ -10,22 +10,24 @@ struct Foo {
 // Demonstrate how to create pseudo 'on change' callbacks by aliasing the properties as actions
 // Specify before or after on change by changing the order in which they are listed to the visitor
 impl Foo {
-	fn before_int_changed(&mut self, _args: &str, writer: &mut dyn cvar::IWrite) {
+	fn before_int_changed(&mut self, _args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		self.string = self.int.to_string();
-		let _ = writeln!(writer, "Before int is changed!");
+		writeln!(context, "Before int is changed!")?;
+		Ok(())
 	}
-	fn after_float_changed(&mut self, _args: &str, writer: &mut dyn cvar::IWrite) {
+	fn after_float_changed(&mut self, _args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		self.string = self.float.to_string();
-		let _ = writeln!(writer, "After float has changed!");
+		writeln!(context, "After float has changed!")?;
+		Ok(())
 	}
 }
 
 impl cvar::IVisit for Foo {
 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-		f(&mut cvar::Action("int", |args, writer| self.before_int_changed(args, writer)));
+		f(&mut cvar::OnChange("int", |args, context| self.before_int_changed(args, context)));
 		f(&mut cvar::Property("int", &mut self.int, &0));
 		f(&mut cvar::Property("float", &mut self.float, &0.0));
-		f(&mut cvar::Action("float", |args, writer| self.after_float_changed(args, writer)));
+		f(&mut cvar::OnChange("float", |args, context| self.after_float_changed(args, context)));
 		f(&mut cvar::Property("string", &mut self.string, &String::new()));
 	}
 }
@@ -49,7 +51,7 @@ fn main() {
 	let mut nested = Nested::default();
 
 	// This property appears nested but is set in the parent context
-	cvar::repl::set_value(&mut nested, "foo.bool", &true, &mut cvar::NullWriter);
+	cvar::repl::set_value(&mut nested, "foo.bool", &true, &mut cvar::NullContext).unwrap();
 	assert!(nested.boolean);
 
 	println!("Hit enter to list all the cvars and their values.");
@@ -63,7 +65,7 @@ fn main() {
 		}
 
 		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
-		cvar::repl::poke(&mut nested, path, args, &mut cvar::IoWriter::stdout());
+		_ = cvar::repl::poke(&mut nested, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
 
@@ -71,6 +73,6 @@ fn main() {
 pub fn read_line(line: &mut String) -> bool {
 	use std::io;
 	print!(">>> ");
-	let _ = io::Write::flush(&mut io::stdout());
+	_ = io::Write::flush(&mut io::stdout());
 	io::stdin().read_line(line).is_err() || line.is_empty()
 }

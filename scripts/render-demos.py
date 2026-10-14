@@ -41,7 +41,7 @@ DEMOS = [
         "example": "program-state",
         "args": [],
         "commands": ["", "number 13", "poke! the value is", "text", "number nope", "number"],
-        "expected": ['text is "the value is: 13"', 'error: number "nope"'],
+        "expected": ['text is "the value is: 13"', 'error: invalid digit found in string\n'],
     },
     {
         "name": "nesting-techniques",
@@ -70,7 +70,7 @@ DEMOS = [
             "destroy! player.name",
             "player",
         ],
-        "expected": ['player.health is "75"', 'player.name is "Ada"', "unknown: player.speed", "unknown: player\n"],
+        "expected": ['player.health is "75"', 'player.name is "Ada"', 'error: path "player.speed" does not exist\n', 'error: path "player" does not exist\n'],
     },
 ]
 
@@ -151,7 +151,7 @@ def render(recording, output):
 
     def append_output(text):
         for line in text.splitlines():
-            color = "error" if line.startswith(("error:", "unknown:")) else "text"
+            color = "error" if line.startswith("error:") else "text"
             lines.append([(line, color)])
 
     def snapshot(duration=100, cursor=True):

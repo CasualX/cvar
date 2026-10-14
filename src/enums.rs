@@ -46,12 +46,16 @@ impl error::Error for ParseEnumError {}
 /// let mut config = Config {
 /// 	mode: TestEnum::First,
 /// };
-/// let mut writer = cvar::NullWriter;
-/// assert!(cvar::repl::set(&mut config, "mode", "Third", &mut writer));
+/// let mut context = cvar::NullContext;
+/// assert_eq!(cvar::repl::set(&mut config, "mode", "Third", &mut context), Ok(()));
 /// assert_eq!(config.mode, TestEnum::Third);
 /// ```
 #[macro_export]
 macro_rules! enum_string {
+	// Known limitation: cfg and conditional cfg_attr attributes inside this macro
+	// are not propagated to generated impls or match arms, so disabling an enum or
+	// variant can fail to compile. Attributes such as derive and default cannot
+	// simply be copied to those locations; conditional attributes need filtering.
 	(
 		$(#[$meta:meta])*
 		$vis:vis enum $name:ident {

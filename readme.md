@@ -89,7 +89,7 @@ impl cvar::IVisit for ProgramState {
 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Property("number", &mut self.number, &42));
 		f(&mut cvar::Property("text", &mut self.text, &String::new()));
-		f(&mut cvar::Action("poke!", |args, _writer| self.poke(args)));
+		f(&mut cvar::Action("poke!", |args, _context| { self.poke(args); Ok(()) }));
 	}
 }
 ```
@@ -114,16 +114,16 @@ Given unique access to the program state...
 ```rust
 assert_eq!(cvar::repl::get(&mut program_state, "number").unwrap(), "42");
 
-let mut writer = String::new();
-assert!(cvar::repl::set(&mut program_state, "number", "13", &mut writer));
+let mut context = String::new();
+assert_eq!(cvar::repl::set(&mut program_state, "number", "13", &mut context), Ok(()));
 assert_eq!(program_state.number, 13);
 ```
 
 Get or set properties by their textual names and values through a console like interface.
 
 ```rust
-let mut writer = String::new();
-cvar::repl::invoke(&mut program_state, "poke!", "the value is", &mut writer);
+let mut context = String::new();
+cvar::repl::invoke(&mut program_state, "poke!", "the value is", &mut context).unwrap();
 assert_eq!(program_state.text, "the value is: 13");
 ```
 

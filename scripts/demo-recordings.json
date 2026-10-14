@@ -22,7 +22,7 @@
       },
       {
         "command": "number nope",
-        "output": "error: number \"nope\": invalid digit found in string\n"
+        "output": "error: invalid digit found in string\n"
       },
       {
         "command": "number",
@@ -100,7 +100,7 @@
       },
       {
         "command": "player.speed",
-        "output": "unknown: player.speed\n"
+        "output": "error: path \"player.speed\" does not exist\n"
       },
       {
         "command": "destroy! player.health",
@@ -112,7 +112,7 @@
       },
       {
         "command": "player",
-        "output": "unknown: player\n"
+        "output": "error: path \"player\" does not exist\n"
       }
     ]
   }

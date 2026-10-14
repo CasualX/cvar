@@ -15,7 +15,7 @@ impl cvar::IVisit for ProgramState {
 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 		f(&mut cvar::Property("number", &mut self.number, &42));
 		f(&mut cvar::Property("text", &mut self.text, &String::new()));
-		f(&mut cvar::Action("poke!", |args, _writer| self.poke(args)));
+		f(&mut cvar::Action("poke!", |args, _context| { self.poke(args); Ok(()) }));
 	}
 }
 
@@ -31,12 +31,12 @@ fn main() {
 
 	loop {
 		print!(">>> ");
-		let _ = io::stdout().flush();
+		_ = io::stdout().flush();
 		let mut line = String::new();
 		if io::stdin().read_line(&mut line).is_err() || line.is_empty() {
 			break;
 		}
 		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
-		cvar::repl::poke(&mut program_state, path, args, &mut cvar::IoWriter::stdout());
+		_ = cvar::repl::poke(&mut program_state, path, args, &mut cvar::IoWriter::stdout());
 	}
 }

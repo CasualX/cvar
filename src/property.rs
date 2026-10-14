@@ -18,21 +18,25 @@ pub enum PropState {
 ///
 /// Provides an object safe interface for properties, type erasing its implementation.
 pub trait IProperty: INode {
-	/// Gets the value.
+	/// Gets a read-only view of the value.
 	fn get_value(&self) -> &dyn IValue;
 
 	/// Sets the value.
-	fn set_value(&mut self, val: &dyn IValue, writer: &mut dyn IWrite) -> bool;
+	///
+	/// Returns `Err(ActionError)` on failure and writes error details to the context.
+	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult;
 
 	/// Sets the value parsed from string.
-	fn set(&mut self, val: &str, writer: &mut dyn IWrite) -> bool;
+	///
+	/// Returns `Err(ActionError)` on failure and writes error details to the context.
+	fn set(&mut self, val: &str, context: &mut dyn IContext) -> ActionResult;
 
 	/// Resets the value to its default.
 	///
 	/// If this operation fails (for eg. read-only properties), it does so silently.
 	fn reset(&mut self);
 
-	/// Gets the default value.
+	/// Gets a read-only view of the default value.
 	fn default_value(&self) -> &dyn IValue;
 
 	/// Returns the state of the property.
@@ -83,21 +87,23 @@ pub struct Property<'a, T: 'static> {
 	default: &'a T,
 }
 
+/// Creates a new Property instance.
 #[allow(non_snake_case)]
 #[inline]
-pub fn Property<'a, T>(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
+pub const fn Property<'a, T>(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
 	Property { name, variable, default }
 }
 
 impl<'a, T> Property<'a, T> {
+	/// Creates a new instance.
 	#[inline]
-	pub fn new(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
+	pub const fn new(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
 		Property { name, variable, default }
 	}
 }
 
 impl<'a, T> INode for Property<'a, T>
-	where T: Clone + Default + PartialEq + fmt::Display + FromStr,
+	where T: Clone + PartialEq + fmt::Display + FromStr,
 	      T::Err: error::Error + Send + Sync + 'static
 {
 	fn name(&self) -> &str {
@@ -110,31 +116,31 @@ impl<'a, T> INode for Property<'a, T>
 }
 
 impl<'a, T> IProperty for Property<'a, T>
-	where T: Clone + Default + PartialEq + fmt::Display + FromStr,
+	where T: Clone + PartialEq + fmt::Display + FromStr,
 	      T::Err: error::Error + Send + Sync + 'static
 {
 	fn get_value(&self) -> &dyn IValue {
 		&*self.variable
 	}
 
-	fn set_value(&mut self, val: &dyn IValue, writer: &mut dyn IWrite) -> bool {
+	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
 		let Some(val) = val.downcast_ref::<T>() else {
-			let _ = write_mismatched_types::<T>(writer, val);
-			return false
+			context.write_mismatched_types::<T>(val)?;
+			return Err(ActionError)
 		};
 		self.variable.clone_from(val);
-		true
+		Ok(())
 	}
 
-	fn set(&mut self, val: &str, writer: &mut dyn IWrite) -> bool {
+	fn set(&mut self, val: &str, context: &mut dyn IContext) -> ActionResult {
 		match val.parse::<T>() {
 			Ok(val) => {
 				*self.variable = val;
-				true
+				Ok(())
 			},
 			Err(err) => {
-				let _ = write_error(writer, &err);
-				false
+				context.write_error(&err)?;
+				Err(ActionError)
 			},
 		}
 	}
@@ -180,8 +186,10 @@ fn clamp_bounds_inclusive<'a, T: PartialOrd>(mut val: &'a T, min: Option<&'a T>,
 /// Property node whose setters clamp values to inclusive bounds.
 ///
 /// Values below the minimum or above the maximum are replaced with that bound.
-/// Clamped assignments return `true`. Values incomparable with a bound (such as
+/// Clamped assignments return `Ok(())`. Values incomparable with a bound (such as
 /// `NaN`) and invalid bounds are rejected, leaving the variable unchanged.
+///
+/// The default value should be within the inclusive bounds.
 pub struct ClampedProp<'a, T: 'static> {
 	name: &'a str,
 	variable: &'a mut T,
@@ -190,21 +198,23 @@ pub struct ClampedProp<'a, T: 'static> {
 	max: Option<&'a T>,
 }
 
+/// Creates a new ClampedProp instance.
 #[allow(non_snake_case)]
 #[inline]
-pub fn ClampedProp<'a, T>(name: &'a str, variable: &'a mut T, default: &'a T, min: Option<&'a T>, max: Option<&'a T>) -> ClampedProp<'a, T> {
+pub const fn ClampedProp<'a, T>(name: &'a str, variable: &'a mut T, default: &'a T, min: Option<&'a T>, max: Option<&'a T>) -> ClampedProp<'a, T> {
 	ClampedProp { name, variable, default, min, max }
 }
 
 impl<'a, T> ClampedProp<'a, T> {
+	/// Creates a new instance.
 	#[inline]
-	pub fn new(name: &'a str, variable: &'a mut T, default: &'a T, min: Option<&'a T>, max: Option<&'a T>) -> ClampedProp<'a, T> {
+	pub const fn new(name: &'a str, variable: &'a mut T, default: &'a T, min: Option<&'a T>, max: Option<&'a T>) -> ClampedProp<'a, T> {
 		ClampedProp { name, variable, default, min, max }
 	}
 }
 
 impl<'a, T> INode for ClampedProp<'a, T>
-	where T: Clone + Default + PartialEq + PartialOrd + fmt::Display + FromStr,
+	where T: Clone + PartialEq + PartialOrd + fmt::Display + FromStr,
 	      T::Err: error::Error + Send + Sync + 'static
 {
 	fn name(&self) -> &str {
@@ -217,46 +227,47 @@ impl<'a, T> INode for ClampedProp<'a, T>
 }
 
 impl<'a, T> IProperty for ClampedProp<'a, T>
-	where T: Clone + Default + PartialEq + PartialOrd + fmt::Display + FromStr,
+	where T: Clone + PartialEq + PartialOrd + fmt::Display + FromStr,
 	      T::Err: error::Error + Send + Sync + 'static
 {
 	fn get_value(&self) -> &dyn IValue {
 		&*self.variable
 	}
 
-	fn set_value(&mut self, val: &dyn IValue, writer: &mut dyn IWrite) -> bool {
+	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
 		let Some(val) = val.downcast_ref::<T>() else {
-			let _ = write_mismatched_types::<T>(writer, val);
-			return false
+			context.write_mismatched_types::<T>(val)?;
+			return Err(ActionError)
 		};
 		let Some(val) = clamp_bounds_inclusive(val, self.min, self.max) else {
-			let _ = writer.write_str("cannot clamp value to bounds");
-			return false
+			context.write_error("cannot clamp value to bounds")?;
+			return Err(ActionError)
 		};
 		self.variable.clone_from(val);
-		true
+		Ok(())
 	}
 
-	fn set(&mut self, val: &str, writer: &mut dyn IWrite) -> bool {
+	fn set(&mut self, val: &str, context: &mut dyn IContext) -> ActionResult {
 		match val.parse::<T>() {
 			Ok(val) => {
 				if let Some(val) = clamp_bounds_inclusive(&val, self.min, self.max) {
 					self.variable.clone_from(val);
-					true
+					Ok(())
 				}
 				else {
-					let _ = writer.write_str("cannot clamp value to bounds");
-					false
+					context.write_error("cannot clamp value to bounds")?;
+					Err(ActionError)
 				}
 			},
 			Err(err) => {
-				let _ = write_error(writer, &err);
-				false
+				context.write_error(&err)?;
+				Err(ActionError)
 			},
 		}
 	}
 
 	fn reset(&mut self) {
+		// Default value not clamped against bounds...
 		self.variable.clone_from(self.default);
 	}
 
@@ -281,15 +292,17 @@ pub struct ReadOnlyProp<'a, T: 'static> {
 	default: &'a T,
 }
 
+/// Creates a new ReadOnlyProp instance.
 #[allow(non_snake_case)]
 #[inline]
-pub fn ReadOnlyProp<'a, T>(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
+pub const fn ReadOnlyProp<'a, T>(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
 	ReadOnlyProp { name, variable, default }
 }
 
 impl<'a, T> ReadOnlyProp<'a, T> {
+	/// Creates a new instance.
 	#[inline]
-	pub fn new(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
+	pub const fn new(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
 		ReadOnlyProp { name, variable, default }
 	}
 }
@@ -309,14 +322,14 @@ impl<'a, T: PartialEq + IValue> IProperty for ReadOnlyProp<'a, T> {
 		self.variable
 	}
 
-	fn set_value(&mut self, _val: &dyn IValue, writer: &mut dyn IWrite) -> bool {
-		let _ = writer.write_str("cannot set read-only property");
-		false
+	fn set_value(&mut self, _val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
+		context.write_error("cannot set read-only property")?;
+		Err(ActionError)
 	}
 
-	fn set(&mut self, _val: &str, writer: &mut dyn IWrite) -> bool {
-		let _ = writer.write_str("cannot set read-only property");
-		false
+	fn set(&mut self, _val: &str, context: &mut dyn IContext) -> ActionResult {
+		context.write_error("cannot set read-only property")?;
+		Err(ActionError)
 	}
 
 	fn reset(&mut self) {}
@@ -343,21 +356,23 @@ pub struct OwnedProp<T: 'static> {
 	pub default: T,
 }
 
+/// Creates a new OwnedProp instance.
 #[allow(non_snake_case)]
 #[inline]
-pub fn OwnedProp<T>(name: String, variable: T, default: T) -> OwnedProp<T> {
+pub const fn OwnedProp<T>(name: String, variable: T, default: T) -> OwnedProp<T> {
 	OwnedProp { name, variable, default }
 }
 
 impl<T> OwnedProp<T> {
+	/// Creates a new instance.
 	#[inline]
-	pub fn new(name: String, variable: T, default: T) -> OwnedProp<T> {
+	pub const fn new(name: String, variable: T, default: T) -> OwnedProp<T> {
 		OwnedProp { name, variable, default }
 	}
 }
 
 impl<T> INode for OwnedProp<T>
-	where T: Clone + Default + PartialEq + fmt::Display + FromStr,
+	where T: Clone + PartialEq + fmt::Display + FromStr,
 	      T::Err: error::Error + Send + Sync + 'static
 {
 	fn name(&self) -> &str {
@@ -370,31 +385,31 @@ impl<T> INode for OwnedProp<T>
 }
 
 impl<T> IProperty for OwnedProp<T>
-	where T: Clone + Default + PartialEq + fmt::Display + FromStr,
+	where T: Clone + PartialEq + fmt::Display + FromStr,
 	      T::Err: error::Error + Send + Sync + 'static
 {
 	fn get_value(&self) -> &dyn IValue {
 		&self.variable
 	}
 
-	fn set_value(&mut self, val: &dyn IValue, writer: &mut dyn IWrite) -> bool {
+	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
 		let Some(val) = val.downcast_ref::<T>() else {
-			let _ = write_mismatched_types::<T>(writer, val);
-			return false
+			context.write_mismatched_types::<T>(val)?;
+			return Err(ActionError)
 		};
 		self.variable.clone_from(val);
-		true
+		Ok(())
 	}
 
-	fn set(&mut self, val: &str, writer: &mut dyn IWrite) -> bool {
+	fn set(&mut self, val: &str, context: &mut dyn IContext) -> ActionResult {
 		match val.parse::<T>() {
 			Ok(val) => {
 				self.variable = val;
-				true
+				Ok(())
 			},
 			Err(err) => {
-				let _ = write_error(writer, &err);
-				false
+				context.write_error(&err)?;
+				Err(ActionError)
 			},
 		}
 	}

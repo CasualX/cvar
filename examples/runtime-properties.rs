@@ -8,11 +8,11 @@ struct RuntimeProps {
 
 impl RuntimeProps {
 	// Action to create new properties
-	fn create(&mut self, args: &str, writer: &mut dyn cvar::IWrite) {
+	fn create(&mut self, args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		let mut args = cvar::repl::parse::split(args.trim_ascii());
 		let (Some(first), Some(second)) = (args.next(), args.next()) else {
-			let _ = writeln!(writer, "Invalid arguments! expecting <type> <name> <value>");
-			return;
+			context.write_error("Invalid arguments! expecting <type> <name> <value>")?;
+			return Err(cvar::ActionError);
 		};
 		let third = args.remainder().unwrap_or("").trim_ascii_start();
 		match first {
@@ -24,8 +24,8 @@ impl RuntimeProps {
 				let value: i32 = match third.parse() {
 					Ok(value) => value,
 					Err(err) => {
-						let _ = writeln!(writer, "Invalid int value: {err}");
-						return;
+						context.write_error(&format_args!("Invalid int value: {err}"))?;
+						return Err(cvar::ActionError);
 					},
 				};
 				let prop = cvar::OwnedProp(second.into(), value, value);
@@ -35,32 +35,35 @@ impl RuntimeProps {
 				let value: f32 = match third.parse() {
 					Ok(value) => value,
 					Err(err) => {
-						let _ = writeln!(writer, "Invalid float value: {err}");
-						return;
+						context.write_error(&format_args!("Invalid float value: {err}"))?;
+						return Err(cvar::ActionError);
 					},
 				};
 				let prop = cvar::OwnedProp(second.into(), value, value);
 				self.props.push(Box::new(prop));
 			},
 			_ => {
-				let _ = writeln!(writer, "Invalid type! supports string, int or float");
+				context.write_error("Invalid type! supports string, int or float")?;
+				return Err(cvar::ActionError);
 			},
 		}
+		Ok(())
 	}
 	// Action to remove properties
-	fn destroy(&mut self, args: &str, writer: &mut dyn cvar::IWrite) {
+	fn destroy(&mut self, args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		let Some(name) = cvar::repl::parse::positional(args, 0) else {
-			let _ = writeln!(writer, "Invalid arguments! expecting the name of the property to remove");
-			return;
+			context.write_error("Invalid arguments! expecting the name of the property to remove")?;
+			return Err(cvar::ActionError);
 		};
 		self.props.retain(|prop| prop.name() != name);
+		Ok(())
 	}
 }
 
 impl cvar::IVisit for RuntimeProps {
 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-		f(&mut cvar::Action("create!", |args, writer| self.create(args, writer)));
-		f(&mut cvar::Action("destroy!", |args, writer| self.destroy(args, writer)));
+		f(&mut cvar::Action("create!", |args, context| self.create(args, context)));
+		f(&mut cvar::Action("destroy!", |args, context| self.destroy(args, context)));
 		for prop in &mut self.props {
 			f(prop.as_mut());
 		}
@@ -71,10 +74,10 @@ fn main() {
 	let mut runtime_props = RuntimeProps::default();
 
 	// Create some runtime props
-	let mut writer = String::new();
-	cvar::repl::invoke(&mut runtime_props, "create!", "float f 3.141592", &mut writer);
-	cvar::repl::invoke(&mut runtime_props, "create!", "string s Hello World!", &mut writer);
-	cvar::repl::invoke(&mut runtime_props, "create!", "int i 42", &mut writer);
+	let mut context = String::new();
+	cvar::repl::invoke(&mut runtime_props, "create!", "float f 3.141592", &mut context).unwrap();
+	cvar::repl::invoke(&mut runtime_props, "create!", "string s Hello World!", &mut context).unwrap();
+	cvar::repl::invoke(&mut runtime_props, "create!", "int i 42", &mut context).unwrap();
 
 	// Inspect the underlying props
 	assert_eq!(runtime_props.props.len(), 3);
@@ -95,7 +98,7 @@ fn main() {
 		}
 
 		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
-		cvar::repl::poke(&mut runtime_props, path, args, &mut cvar::IoWriter::stdout());
+		_ = cvar::repl::poke(&mut runtime_props, path, args, &mut cvar::IoWriter::stdout());
 	}
 }
 
@@ -103,7 +106,7 @@ fn main() {
 pub fn read_line(line: &mut String) -> bool {
 	use std::io;
 	print!(">>> ");
-	let _ = io::Write::flush(&mut io::stdout());
+	_ = io::Write::flush(&mut io::stdout());
 	io::stdin().read_line(line).is_err() || line.is_empty()
 }
 
@@ -111,12 +114,13 @@ pub fn read_line(line: &mut String) -> bool {
 fn create_rejects_invalid_input() {
 	let mut props = RuntimeProps::default();
 	for args in ["", "int", "int value", "int value invalid", "float value invalid", "string"] {
-		let mut writer = String::new();
-		assert!(cvar::repl::invoke(&mut props, "create!", args, &mut writer));
-		assert!(!writer.is_empty());
+		let mut context = String::new();
+		assert_eq!(cvar::repl::invoke(&mut props, "create!", args, &mut context), Err(cvar::ActionError));
+		assert!(context.starts_with("error: "));
+		assert!(context.ends_with('\n'));
 		assert!(props.props.is_empty());
 	}
-	let mut writer = String::new();
-	assert!(cvar::repl::invoke(&mut props, "create!", "int value 42", &mut writer));
+	let mut context = String::new();
+	assert_eq!(cvar::repl::invoke(&mut props, "create!", "int value 42", &mut context), Ok(()));
 	assert_eq!(cvar::repl::get_value::<i32>(&mut props, "value"), Some(42));
 }

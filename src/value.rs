@@ -2,7 +2,11 @@ use super::*;
 
 //----------------------------------------------------------------
 
-/// Property values.
+/// Property values that can be displayed and downcast to their concrete type.
+///
+/// Implemented automatically for all `'static` types that implement [`fmt::Display`].
+/// Reading a value does not require cloning, comparison, or parsing.
+/// Property implementations determine which operations are supported on the value.
 pub trait IValue: any::Any + fmt::Display {
 	/// Returns the name of the concrete type.
 	#[cfg(feature = "type_name")]
@@ -30,10 +34,7 @@ impl dyn IValue {
 	}
 }
 
-impl<T: 'static + Sized> IValue for T
-	where T: Clone + Default + PartialEq + fmt::Display + FromStr,
-	      T::Err: error::Error + Send + Sync + 'static
-{}
+impl<T: any::Any + fmt::Display> IValue for T {}
 
 //----------------------------------------------------------------
 

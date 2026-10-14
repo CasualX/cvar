@@ -46,8 +46,8 @@ impl fmt::Debug for dyn IVisit + '_ {
 /// 	f(&mut cvar::Property("value", &mut value, &0));
 /// });
 ///
-/// let mut writer = String::new();
-/// let _ = cvar::repl::set(&mut visitor, "value", "42", &mut writer);
+/// let mut context = String::new();
+/// cvar::repl::set(&mut visitor, "value", "42", &mut context).unwrap();
 /// assert_eq!(value, 42);
 /// ```
 #[derive(Copy, Clone, Debug)]
@@ -87,15 +87,17 @@ pub struct List<'a> {
 	visitor: &'a mut dyn IVisit,
 }
 
+/// Creates a new List instance.
 #[allow(non_snake_case)]
 #[inline]
-pub fn List<'a>(name: &'a str, visitor: &'a mut dyn IVisit) -> List<'a> {
+pub const fn List<'a>(name: &'a str, visitor: &'a mut dyn IVisit) -> List<'a> {
 	List { name, visitor }
 }
 
 impl<'a> List<'a> {
+	/// Creates a new instance.
 	#[inline]
-	pub fn new(name: &'a str, visitor: &'a mut dyn IVisit) -> List<'a> {
+	pub const fn new(name: &'a str, visitor: &'a mut dyn IVisit) -> List<'a> {
 		List { name, visitor }
 	}
 }

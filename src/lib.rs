@@ -9,8 +9,9 @@
 //! }
 //!
 //! impl User {
-//! 	pub fn greet(&self, writer: &mut dyn cvar::IWrite) {
-//! 		let _ = writeln!(writer, "Hello, {}!", self.name);
+//! 	pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
+//! 		writeln!(context, "Hello, {}!", self.name)?;
+//! 		Ok(())
 //! 	}
 //! }
 //! ```
@@ -18,11 +19,11 @@
 //! Implement the [`IVisit`] trait to make this structure available for interactivity:
 //!
 //! ```
-//! # struct User { name: String } impl User { pub fn greet(&self, writer: &mut dyn cvar::IWrite) { let _ = writeln!(writer, "Hello, {}!", self.name); } }
+//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name)?; Ok(()) } }
 //! impl cvar::IVisit for User {
 //! 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 //! 		f(&mut cvar::Property("name", &mut self.name, &String::new()));
-//! 		f(&mut cvar::Action("greet!", |_args, writer| self.greet(writer)));
+//! 		f(&mut cvar::Action("greet!", |_args, context| self.greet(context)));
 //! 	}
 //! }
 //! ```
@@ -30,7 +31,7 @@
 //! That's it! Create an instance of the structure to interact with:
 //!
 //! ```
-//! # struct User { name: String } impl User { pub fn greet(&self, writer: &mut dyn cvar::IWrite) { let _ = writeln!(writer, "Hello, {}!", self.name); } }
+//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name)?; Ok(()) } }
 //! let mut user = User {
 //! 	name: String::new(),
 //! };
@@ -39,18 +40,18 @@
 //! Given unique access, interact with the instance with a stringly typed API:
 //!
 //! ```
-//! # struct User { name: String } impl User { pub fn greet(&self, writer: &mut dyn cvar::IWrite) { let _ = writeln!(writer, "Hello, {}!", self.name); } }
-//! # impl cvar::IVisit for User { fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) { f(&mut cvar::Property("name", &mut self.name, &String::new())); f(&mut cvar::Action("greet!", |_args, writer| self.greet(writer))); } }
+//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name)?; Ok(()) } }
+//! # impl cvar::IVisit for User { fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) { f(&mut cvar::Property("name", &mut self.name, &String::new())); f(&mut cvar::Action("greet!", |_args, context| self.greet(context))); } }
 //! # let mut user = User { name: String::new() };
-//! let mut writer = String::new();
+//! let mut context = String::new();
 //!
 //! // Give the user a name
-//! cvar::repl::set(&mut user, "name", "World", &mut writer);
+//! cvar::repl::set(&mut user, "name", "World", &mut context).unwrap();
 //! assert_eq!(user.name, "World");
 //!
-//! // Greet the user, the message is printed to the writer
-//! cvar::repl::invoke(&mut user, "greet!", "", &mut writer);
-//! assert_eq!(writer, "Hello, World!\n");
+//! // Greet the user, the message is written to the context
+//! cvar::repl::invoke(&mut user, "greet!", "", &mut context).unwrap();
+//! assert_eq!(context, "Hello, World!\n");
 //! ```
 //!
 //! This example is extremely basic, for more complex scenarios see the examples.
@@ -75,8 +76,8 @@ pub use enums::ParseEnumError;
 mod value;
 pub use self::value::*;
 
-mod writer;
-pub use self::writer::*;
+mod context;
+pub use self::context::*;
 
 mod action;
 pub use self::action::*;
@@ -89,23 +90,6 @@ pub use self::list::*;
 
 mod node;
 pub use self::node::*;
-
-#[inline]
-fn write_error<T: ?Sized + error::Error>(writer: &mut dyn IWrite, v: &T) -> fmt::Result {
-	writer.write_fmt(format_args!("{}", v))
-}
-
-#[cfg(feature = "type_name")]
-#[inline]
-fn write_mismatched_types<T: IValue>(writer: &mut dyn IWrite, val: &dyn IValue) -> fmt::Result {
-	write!(writer, "mismatched types: expected `{}`, found `{}`", any::type_name::<T>(), val.type_name())
-}
-
-#[cfg(not(feature = "type_name"))]
-#[inline]
-fn write_mismatched_types<T: IValue>(writer: &mut dyn IWrite, _val: &dyn IValue) -> fmt::Result {
-	writer.write_str("mismatched types")
-}
 
 #[cfg(test)]
 mod tests;
