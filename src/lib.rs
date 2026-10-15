@@ -10,7 +10,7 @@
 //!
 //! impl User {
 //! 	pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
-//! 		writeln!(context, "Hello, {}!", self.name)?;
+//! 		writeln!(context, "Hello, {}!", self.name);
 //! 		Ok(())
 //! 	}
 //! }
@@ -19,7 +19,7 @@
 //! Implement the [`IVisit`] trait to make this structure available for interactivity:
 //!
 //! ```
-//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name)?; Ok(()) } }
+//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name); Ok(()) } }
 //! impl cvar::IVisit for User {
 //! 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
 //! 		f(&mut cvar::Property("name", &mut self.name, &String::new()));
@@ -31,7 +31,7 @@
 //! That's it! Create an instance of the structure to interact with:
 //!
 //! ```
-//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name)?; Ok(()) } }
+//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name); Ok(()) } }
 //! let mut user = User {
 //! 	name: String::new(),
 //! };
@@ -40,7 +40,7 @@
 //! Given unique access, interact with the instance with a stringly typed API:
 //!
 //! ```
-//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name)?; Ok(()) } }
+//! # struct User { name: String } impl User { pub fn greet(&self, context: &mut dyn cvar::IContext) -> cvar::ActionResult { writeln!(context, "Hello, {}!", self.name); Ok(()) } }
 //! # impl cvar::IVisit for User { fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) { f(&mut cvar::Property("name", &mut self.name, &String::new())); f(&mut cvar::Action("greet!", |_args, context| self.greet(context))); } }
 //! # let mut user = User { name: String::new() };
 //! let mut context = String::new();

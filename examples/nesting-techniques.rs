@@ -12,12 +12,12 @@ struct Foo {
 impl Foo {
 	fn before_int_changed(&mut self, _args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		self.string = self.int.to_string();
-		writeln!(context, "Before int is changed!")?;
+		writeln!(context, "Before int is changed!");
 		Ok(())
 	}
 	fn after_float_changed(&mut self, _args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		self.string = self.float.to_string();
-		writeln!(context, "After float has changed!")?;
+		writeln!(context, "After float has changed!");
 		Ok(())
 	}
 }

@@ -10,7 +10,7 @@ pub mod parse;
 
 /// Pokes the cvar tree.
 ///
-/// This function combines the behavior of [`get`], [`set`], and [`invoke`].
+/// This function combines the behavior of [`print`], [`get`], [`set`], and [`invoke`].
 ///
 /// Returns `Err(ActionError)` if an operation failed, the path does not exist or the args were not valid.
 /// Error details are written to the context. All matching nodes are visited, even after a failure.
@@ -26,7 +26,7 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 		walk(root, |node_path, node| {
 			match ComparePath::cmp(node_path, path) {
 				ComparePath::Descendant => {
-					result = result.and(_print_node(node, node_path, context).map_err(ActionError::from));
+					_print_node(node, node_path, context);
 					found = true;
 					return true; // Visit list children below the requested path.
 				},
@@ -43,13 +43,13 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 						if status.is_ok() {
 							let value = prop.get_value().to_string();
 							// cvar.prop is "true"
-							result = result.and(writeln!(context, "{path} is {value:?}").map_err(ActionError::from));
+							writeln!(context, "{path} is {value:?}");
 						}
 					}
 					else {
 						let value = prop.get_value().to_string();
 						// cvar.prop is "true"
-						result = result.and(writeln!(context, "{path} is {value:?}").map_err(ActionError::from));
+						writeln!(context, "{path} is {value:?}");
 					}
 				},
 				Node::List(_) => {}, // `walk` visits list children after this callback returns `true`.
@@ -62,43 +62,40 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 			true
 		});
 		if !found {
-			context.write_error(&format_args!("path {path:?} does not exist"))?;
+			context.write_error(&format_args!("path {path:?} does not exist"));
 			return Err(ActionError);
 		}
 	}
 	else {
-		result = _print_nodes(root, None, context).map_err(ActionError::from);
+		_print_nodes(root, None, context);
 	}
 	result
 }
 
-fn _print_node(node: &mut dyn INode, path: &str, context: &mut dyn IContext) -> fmt::Result {
+fn _print_node(node: &mut dyn INode, path: &str, context: &mut dyn IContext) {
 	match node.as_node() {
 		Node::Prop(prop) => {
 			let value = prop.get_value().to_string();
-			write!(context, "{path} is {value:?}")?;
+			write!(context, "{path} is {value:?}");
 		},
 		Node::List(_) => {
-			context.write_str(path)?;
-			context.write_str("…")?;
+			context.write_str(path);
+			context.write_str("…");
 		},
 		Node::Action(_) => {
-			context.write_str(path)?;
+			context.write_str(path);
 		},
 	}
-	context.write_str("\n")?;
-	Ok(())
+	context.write_str("\n");
 }
-fn _print_nodes(root: &mut dyn IVisit, path: Option<&str>, context: &mut dyn IContext) -> fmt::Result {
-	let mut result = Ok(());
+fn _print_nodes(root: &mut dyn IVisit, path: Option<&str>, context: &mut dyn IContext) {
 	root.visit(&mut |node| {
 		let full_path = match path {
 			Some(path) => format!("{path}.{}", node.name()),
 			None => node.name().to_owned(),
 		};
-		result = result.and(_print_node(node, &full_path, context));
+		_print_node(node, &full_path, context);
 	});
-	result
 }
 
 //----------------------------------------------------------------
@@ -126,7 +123,7 @@ pub fn set(root: &mut dyn IVisit, path: &str, val: &str, context: &mut dyn ICont
 			},
 		}
 	}) {
-		context.write_error(&format_args!("path {path:?} does not exist"))?;
+		context.write_error(&format_args!("path {path:?} does not exist"));
 	}
 	if found { result } else { Err(ActionError) }
 }
@@ -168,7 +165,7 @@ pub fn set_value(root: &mut dyn IVisit, path: &str, val: &dyn IValue, context: &
 			},
 		}
 	}) {
-		context.write_error(&format_args!("path {path:?} does not exist"))?;
+		context.write_error(&format_args!("path {path:?} does not exist"));
 	}
 	if found { result } else { Err(ActionError) }
 }
@@ -244,8 +241,7 @@ pub fn reset_all(root: &mut dyn IVisit) {
 ///
 /// An empty path lists the visitor's immediate children.
 #[inline]
-pub fn print(root: &mut dyn IVisit, path: &str, context: &mut dyn IContext) -> fmt::Result {
-	let mut result = Ok(());
+pub fn print(root: &mut dyn IVisit, path: &str, context: &mut dyn IContext) {
 	if !path.is_empty() {
 		let mut found = false;
 		walk(root, |node_path, node| {
@@ -255,17 +251,16 @@ pub fn print(root: &mut dyn IVisit, path: &str, context: &mut dyn IContext) -> f
 				ComparePath::Equal | ComparePath::Descendant => {},
 			}
 			found = true;
-			result = result.and(_print_node(node, node_path, context));
+			_print_node(node, node_path, context);
 			true // `walk` visits list children after this callback returns `true`.
 		});
 		if !found {
-			result = result.and(context.write_error(&format_args!("path {path:?} does not exist")));
+			context.write_error(&format_args!("path {path:?} does not exist"));
 		}
 	}
 	else {
-		result = _print_nodes(root, None, context);
+		_print_nodes(root, None, context);
 	}
-	result
 }
 
 //----------------------------------------------------------------

@@ -125,7 +125,7 @@ impl<'a, T> IProperty for Property<'a, T>
 
 	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
 		let Some(val) = val.downcast_ref::<T>() else {
-			context.write_mismatched_types::<T>(val)?;
+			context.write_mismatched_types::<T>(val);
 			return Err(ActionError)
 		};
 		self.variable.clone_from(val);
@@ -139,7 +139,7 @@ impl<'a, T> IProperty for Property<'a, T>
 				Ok(())
 			},
 			Err(err) => {
-				context.write_error(&err)?;
+				context.write_error(&err);
 				Err(ActionError)
 			},
 		}
@@ -236,11 +236,11 @@ impl<'a, T> IProperty for ClampedProp<'a, T>
 
 	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
 		let Some(val) = val.downcast_ref::<T>() else {
-			context.write_mismatched_types::<T>(val)?;
+			context.write_mismatched_types::<T>(val);
 			return Err(ActionError)
 		};
 		let Some(val) = clamp_bounds_inclusive(val, self.min, self.max) else {
-			context.write_error("cannot clamp value to bounds")?;
+			context.write_error("cannot clamp value to bounds");
 			return Err(ActionError)
 		};
 		self.variable.clone_from(val);
@@ -255,12 +255,12 @@ impl<'a, T> IProperty for ClampedProp<'a, T>
 					Ok(())
 				}
 				else {
-					context.write_error("cannot clamp value to bounds")?;
+					context.write_error("cannot clamp value to bounds");
 					Err(ActionError)
 				}
 			},
 			Err(err) => {
-				context.write_error(&err)?;
+				context.write_error(&err);
 				Err(ActionError)
 			},
 		}
@@ -323,12 +323,12 @@ impl<'a, T: PartialEq + IValue> IProperty for ReadOnlyProp<'a, T> {
 	}
 
 	fn set_value(&mut self, _val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
-		context.write_error("cannot set read-only property")?;
+		context.write_error("cannot set read-only property");
 		Err(ActionError)
 	}
 
 	fn set(&mut self, _val: &str, context: &mut dyn IContext) -> ActionResult {
-		context.write_error("cannot set read-only property")?;
+		context.write_error("cannot set read-only property");
 		Err(ActionError)
 	}
 
@@ -394,7 +394,7 @@ impl<T> IProperty for OwnedProp<T>
 
 	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
 		let Some(val) = val.downcast_ref::<T>() else {
-			context.write_mismatched_types::<T>(val)?;
+			context.write_mismatched_types::<T>(val);
 			return Err(ActionError)
 		};
 		self.variable.clone_from(val);
@@ -408,7 +408,7 @@ impl<T> IProperty for OwnedProp<T>
 				Ok(())
 			},
 			Err(err) => {
-				context.write_error(&err)?;
+				context.write_error(&err);
 				Err(ActionError)
 			},
 		}

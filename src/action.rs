@@ -11,12 +11,6 @@ pub struct ActionError;
 /// Result of an action or property operation.
 pub type ActionResult = Result<(), ActionError>;
 
-impl From<fmt::Error> for ActionError {
-	fn from(_: fmt::Error) -> Self {
-		ActionError
-	}
-}
-
 impl fmt::Display for ActionError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		f.write_str("action failed")

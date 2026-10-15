@@ -11,7 +11,7 @@ impl RuntimeProps {
 	fn create(&mut self, args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		let mut args = cvar::repl::parse::split(args.trim_ascii());
 		let (Some(first), Some(second)) = (args.next(), args.next()) else {
-			context.write_error("Invalid arguments! expecting <type> <name> <value>")?;
+			context.write_error("Invalid arguments! expecting <type> <name> <value>");
 			return Err(cvar::ActionError);
 		};
 		let third = args.remainder().unwrap_or("").trim_ascii_start();
@@ -24,7 +24,7 @@ impl RuntimeProps {
 				let value: i32 = match third.parse() {
 					Ok(value) => value,
 					Err(err) => {
-						context.write_error(&format_args!("Invalid int value: {err}"))?;
+						context.write_error(&format_args!("Invalid int value: {err}"));
 						return Err(cvar::ActionError);
 					},
 				};
@@ -35,7 +35,7 @@ impl RuntimeProps {
 				let value: f32 = match third.parse() {
 					Ok(value) => value,
 					Err(err) => {
-						context.write_error(&format_args!("Invalid float value: {err}"))?;
+						context.write_error(&format_args!("Invalid float value: {err}"));
 						return Err(cvar::ActionError);
 					},
 				};
@@ -43,7 +43,7 @@ impl RuntimeProps {
 				self.props.push(Box::new(prop));
 			},
 			_ => {
-				context.write_error("Invalid type! supports string, int or float")?;
+				context.write_error("Invalid type! supports string, int or float");
 				return Err(cvar::ActionError);
 			},
 		}
@@ -52,7 +52,7 @@ impl RuntimeProps {
 	// Action to remove properties
 	fn destroy(&mut self, args: &str, context: &mut dyn cvar::IContext) -> cvar::ActionResult {
 		let Some(name) = cvar::repl::parse::positional(args, 0) else {
-			context.write_error("Invalid arguments! expecting the name of the property to remove")?;
+			context.write_error("Invalid arguments! expecting the name of the property to remove");
 			return Err(cvar::ActionError);
 		};
 		self.props.retain(|prop| prop.name() != name);
