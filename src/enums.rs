@@ -47,7 +47,7 @@ impl error::Error for ParseEnumError {}
 /// 	mode: TestEnum::First,
 /// };
 /// let mut context = cvar::NullContext;
-/// assert_eq!(cvar::repl::set(&mut config, "mode", "Third", &mut context), Ok(()));
+/// assert_eq!(cvar::repl::set(&mut config, "mode", "Third", &mut context), Ok(true));
 /// assert_eq!(config.mode, TestEnum::Third);
 /// ```
 #[macro_export]

@@ -65,7 +65,10 @@ fn main() {
 		}
 
 		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
-		_ = cvar::repl::poke(&mut nested, path, args, &mut cvar::IoWriter::stdout());
+		let context: &mut dyn cvar::IContext = &mut cvar::IoWriter::stdout();
+		if let Ok(false) = cvar::repl::poke(&mut nested, path, args, context) {
+			context.write_error(&format_args!("path {path:?} does not exist"));
+		}
 	}
 }
 

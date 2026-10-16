@@ -12,17 +12,19 @@ pub mod parse;
 ///
 /// This function combines the behavior of [`print`], [`get`], [`set`], and [`invoke`].
 ///
-/// Returns `Err(ActionError)` if an operation failed, the path does not exist or the args were not valid.
+/// Returns `Ok(true)` if the path or any dotted descendants matched and all operations succeeded,
+/// `Ok(false)` if nothing matched, or `Err(ActionError)` if a property update or action failed.
+///
 /// Error details are written to the context. All matching nodes are visited, even after a failure.
 ///
 /// Change callbacks are only invoked when `args` is `Some`, ordinary actions are always invoked.
 ///
 /// Nodes below the path's dotted prefix are listed, including nodes with dotted
 /// names and descendants of real lists.
-pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut dyn IContext) -> ActionResult {
+pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut dyn IContext) -> Result<bool, ActionError> {
+	let mut found = false;
 	let mut result = Ok(());
 	if !path.is_empty() {
-		let mut found = false;
 		walk(root, |node_path, node| {
 			match ComparePath::cmp(node_path, path) {
 				ComparePath::Descendant => {
@@ -61,15 +63,12 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 			}
 			true
 		});
-		if !found {
-			context.write_error(&format_args!("path {path:?} does not exist"));
-			return Err(ActionError);
-		}
 	}
 	else {
 		_print_nodes(root, None, context);
+		found = true;
 	}
-	result
+	result.map(|()| found)
 }
 
 fn _print_node(node: &mut dyn INode, path: &str, context: &mut dyn IContext) {
@@ -104,13 +103,15 @@ fn _print_nodes(root: &mut dyn IVisit, path: Option<&str>, context: &mut dyn ICo
 ///
 /// If the path is an action it is invoked with the value as the argument.
 ///
-/// Returns `Ok(())` if at least one property or action matched and all operations succeeded.
+/// Returns `Ok(true)` if at least one property or action matched and all operations succeeded,
+/// `Ok(false)` if none matched, or `Err(ActionError)` if a property update or action failed.
+///
 /// Error details are written to the context. All matching nodes are visited, even after a failure.
 #[inline]
-pub fn set(root: &mut dyn IVisit, path: &str, val: &str, context: &mut dyn IContext) -> ActionResult {
+pub fn set(root: &mut dyn IVisit, path: &str, val: &str, context: &mut dyn IContext) -> Result<bool, ActionError> {
 	let mut found = false;
 	let mut result = Ok(());
-	if !find(root, path, |node| {
+	find(root, path, |node| {
 		match node.as_node() {
 			Node::Prop(prop) => {
 				found = true;
@@ -122,10 +123,8 @@ pub fn set(root: &mut dyn IVisit, path: &str, val: &str, context: &mut dyn ICont
 				result = result.and(act.invoke(val, context));
 			},
 		}
-	}) {
-		context.write_error(&format_args!("path {path:?} does not exist"));
-	}
-	if found { result } else { Err(ActionError) }
+	});
+	result.map(|()| found)
 }
 
 /// Gets a property's value as a string.
@@ -146,13 +145,15 @@ pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 ///
 /// If the path is an action it is invoked with the value as the argument.
 ///
-/// Returns `Ok(())` if at least one property or action matched and all operations succeeded.
+/// Returns `Ok(true)` if at least one property or action matched and all operations succeeded,
+/// `Ok(false)` if none matched, or `Err(ActionError)` if a property update or action failed.
+///
 /// Error details are written to the context. All matching nodes are visited, even after a failure.
 #[inline]
-pub fn set_value(root: &mut dyn IVisit, path: &str, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
+pub fn set_value(root: &mut dyn IVisit, path: &str, val: &dyn IValue, context: &mut dyn IContext) -> Result<bool, ActionError> {
 	let mut found = false;
 	let mut result = Ok(());
-	if !find(root, path, |node| {
+	find(root, path, |node| {
 		match node.as_node() {
 			Node::Prop(prop) => {
 				found = true;
@@ -164,10 +165,8 @@ pub fn set_value(root: &mut dyn IVisit, path: &str, val: &dyn IValue, context: &
 				result = result.and(act.invoke(&val.to_string(), context));
 			},
 		}
-	}) {
-		context.write_error(&format_args!("path {path:?} does not exist"));
-	}
-	if found { result } else { Err(ActionError) }
+	});
+	result.map(|()| found)
 }
 
 /// Gets a property's value directly.
@@ -189,13 +188,16 @@ pub fn get_value<T: Clone + 'static>(root: &mut dyn IVisit, path: &str) -> Optio
 /// Resets properties to their default.
 ///
 /// Resets the exact path and all dotted descendants.
-/// Returns false if neither the path nor any descendants exist.
+/// Returns `Ok(true)` if the path or any descendants matched and all change callbacks succeeded,
+/// `Ok(false)` if nothing matched, or `Err(ActionError)` if any change callback failed.
 ///
 /// Matching actions marked as change callbacks are invoked in visitor order with empty arguments
-/// and a [`NullContext`]. Other actions are skipped. Action errors are ignored.
+/// and the supplied context. Other actions are skipped.
+/// Error details are written to the context. All matching nodes are visited, even after a failure.
 #[inline]
-pub fn reset(root: &mut dyn IVisit, path: &str) -> bool {
+pub fn reset(root: &mut dyn IVisit, path: &str, context: &mut dyn IContext) -> Result<bool, ActionError> {
 	let mut found = false;
+	let mut result = Ok(());
 	walk(root, |node_path, node| {
 		match ComparePath::cmp(node_path, path) {
 			ComparePath::Ancestor => return true,
@@ -208,33 +210,38 @@ pub fn reset(root: &mut dyn IVisit, path: &str) -> bool {
 			Node::List(_) => {}, // `walk` visits list children after this callback returns `true`.
 			Node::Action(act) => {
 				if act.metadata().change_callback {
-					_ = act.invoke("", &mut NullContext);
+					result = result.and(act.invoke("", context));
 				}
 			},
 		}
 		true
 	});
-	found
+	result.map(|()| found)
 }
 
 /// Resets all properties to their default.
 ///
 /// Actions marked as change callbacks are invoked in visitor order with empty arguments
-/// and a [`NullContext`]. Other actions are skipped. Action errors are ignored.
+/// and the supplied context. Other actions are skipped.
+///
+/// Returns `Err(ActionError)` if any change callback failed.
+/// Error details are written to the context. All nodes are visited, even after a failure.
 #[inline]
-pub fn reset_all(root: &mut dyn IVisit) {
+pub fn reset_all(root: &mut dyn IVisit, context: &mut dyn IContext) -> ActionResult {
+	let mut result = Ok(());
 	walk(root, |_, node| {
 		match node.as_node() {
 			Node::Prop(prop) => prop.reset(),
 			Node::List(_) => {}, // `walk` visits list children after this callback returns `true`.
 			Node::Action(act) => {
 				if act.metadata().change_callback {
-					_ = act.invoke("", &mut NullContext);
+					result = result.and(act.invoke("", context));
 				}
 			},
 		}
 		true
 	});
+	result
 }
 
 /// Lists the exact path and all dotted descendants.
@@ -385,10 +392,12 @@ fn walk_rec(list: &mut dyn IVisit, path: &mut String, f: &mut dyn FnMut(&str, &m
 
 /// Invokes an action.
 ///
-/// Returns `Err(ActionError)` if no action node was found or any matching action failed.
+/// Returns `Ok(true)` if at least one action matched and all matching actions succeeded,
+/// `Ok(false)` if no action matched, or `Err(ActionError)` if any matching action failed.
+///
 /// Actions report error details through the context. All matching actions are invoked, even after a failure.
 #[inline]
-pub fn invoke(root: &mut dyn IVisit, path: &str, args: &str, context: &mut dyn IContext) -> ActionResult {
+pub fn invoke(root: &mut dyn IVisit, path: &str, args: &str, context: &mut dyn IContext) -> Result<bool, ActionError> {
 	let mut found = false;
 	let mut result = Ok(());
 	find(root, path, |node| {
@@ -397,5 +406,5 @@ pub fn invoke(root: &mut dyn IVisit, path: &str, args: &str, context: &mut dyn I
 			result = result.and(act.invoke(args, context));
 		}
 	});
-	if found { result } else { Err(ActionError) }
+	result.map(|()| found)
 }

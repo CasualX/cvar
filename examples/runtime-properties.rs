@@ -98,7 +98,10 @@ fn main() {
 		}
 
 		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
-		_ = cvar::repl::poke(&mut runtime_props, path, args, &mut cvar::IoWriter::stdout());
+		let context: &mut dyn cvar::IContext = &mut cvar::IoWriter::stdout();
+		if let Ok(false) = cvar::repl::poke(&mut runtime_props, path, args, context) {
+			context.write_error(&format_args!("path {path:?} does not exist"));
+		}
 	}
 }
 
@@ -121,6 +124,6 @@ fn create_rejects_invalid_input() {
 		assert!(props.props.is_empty());
 	}
 	let mut context = String::new();
-	assert_eq!(cvar::repl::invoke(&mut props, "create!", "int value 42", &mut context), Ok(()));
+	assert_eq!(cvar::repl::invoke(&mut props, "create!", "int value 42", &mut context), Ok(true));
 	assert_eq!(cvar::repl::get_value::<i32>(&mut props, "value"), Some(42));
 }

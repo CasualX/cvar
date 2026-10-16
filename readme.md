@@ -115,7 +115,7 @@ Given unique access to the program state...
 assert_eq!(cvar::repl::get(&mut program_state, "number").unwrap(), "42");
 
 let mut context = String::new();
-assert_eq!(cvar::repl::set(&mut program_state, "number", "13", &mut context), Ok(()));
+assert_eq!(cvar::repl::set(&mut program_state, "number", "13", &mut context), Ok(true));
 assert_eq!(program_state.number, 13);
 ```
 

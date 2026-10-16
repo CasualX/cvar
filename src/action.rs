@@ -25,7 +25,7 @@ impl error::Error for ActionError {}
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub struct ActionMetadata {
-	/// Invoke this action during resets, in visitor order, with empty arguments and a [`NullContext`].
+	/// Invoke this action during resets, in visitor order, with empty arguments and the supplied context.
 	pub change_callback: bool,
 }
 

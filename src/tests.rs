@@ -40,13 +40,13 @@ fn root() -> Root {
 fn repl_reads_writes_and_reports_errors() {
 	let mut root = root();
 	let mut context = String::new();
-	assert_eq!(repl::set(&mut root, "foo.float", "-1", &mut context), Ok(()));
+	assert_eq!(repl::set(&mut root, "foo.float", "-1", &mut context), Ok(true));
 	assert_eq!(root.foo.float, -1.0);
-	assert_eq!(repl::set_value(&mut root, "foo.int", &42, &mut context), Ok(()));
+	assert_eq!(repl::set_value(&mut root, "foo.int", &42, &mut context), Ok(true));
 	assert_eq!(repl::get_value::<i32>(&mut root, "foo.int"), Some(42));
-	assert_eq!(repl::set(&mut root, "foo.string", "hello", &mut context), Ok(()));
+	assert_eq!(repl::set(&mut root, "foo.string", "hello", &mut context), Ok(true));
 	assert_eq!(repl::get(&mut root, "foo.string"), Some(String::from("hello")));
-	assert_eq!(repl::invoke(&mut root, "foo.action", "world", &mut context), Ok(()));
+	assert_eq!(repl::invoke(&mut root, "foo.action", "world", &mut context), Ok(true));
 	assert_eq!(context, "I am hello and world\n");
 
 	context.clear();
@@ -55,10 +55,29 @@ fn repl_reads_writes_and_reports_errors() {
 	assert!(context.starts_with("error: "));
 	assert_eq!(repl::set_value(&mut root, "foo.int", &true, &mut context), Err(ActionError));
 	assert!(context.contains("error: mismatched types"));
-	assert_eq!(repl::set(&mut root, "missing", "42", &mut context), Err(ActionError));
-	assert!(context.ends_with("error: path \"missing\" does not exist\n"));
+	assert_eq!(repl::set(&mut root, "missing", "42", &mut context), Ok(false));
 	assert_eq!(repl::get(&mut root, "missing"), None);
-	assert_eq!(repl::invoke(&mut root, "foo.int", "", &mut context), Err(ActionError));
+	assert_eq!(repl::invoke(&mut root, "foo.int", "", &mut context), Ok(false));
+}
+
+#[test]
+fn missing_matches_return_false_without_errors() {
+	let mut root = root();
+	let mut context = String::new();
+	assert_eq!(repl::poke(&mut root, "missing", None, &mut context), Ok(false));
+	assert_eq!(repl::poke(&mut root, "missing", Some("42"), &mut context), Ok(false));
+	assert_eq!(repl::set(&mut root, "missing", "42", &mut context), Ok(false));
+	assert_eq!(repl::set_value(&mut root, "missing", &42, &mut context), Ok(false));
+	assert_eq!(repl::reset(&mut root, "missing", &mut context), Ok(false));
+	assert_eq!(repl::invoke(&mut root, "missing", "", &mut context), Ok(false));
+	assert_eq!(repl::set(&mut root, "foo", "42", &mut context), Ok(false));
+	assert_eq!(repl::set_value(&mut root, "foo", &42, &mut context), Ok(false));
+	assert_eq!(repl::invoke(&mut root, "foo", "", &mut context), Ok(false));
+	assert!(context.is_empty());
+
+	let mut empty = Visit(|_| {});
+	assert_eq!(repl::poke(&mut empty, "", None, &mut context), Ok(true));
+	assert!(context.is_empty());
 }
 
 #[test]
@@ -88,7 +107,7 @@ fn traversal_combines_lists_and_dotted_names() {
 	assert!(!repl::find(&mut root, "foo.bar.ba", |_| panic!("partial name matched")));
 
 	let mut context = String::new();
-	assert_eq!(repl::poke(&mut root, "foo.bar", Some("ignored"), &mut context), Ok(()));
+	assert_eq!(repl::poke(&mut root, "foo.bar", Some("ignored"), &mut context), Ok(true));
 	assert_eq!(context, concat!(
 		"foo.bar.baz is \"1\"\n",
 		"foo.bar.baz is \"2\"\n",
@@ -113,10 +132,10 @@ fn listing_preserves_order_without_invoking_actions() {
 	));
 	let expected = context.replace("foo…\n", "");
 	context.clear();
-	assert_eq!(repl::poke(&mut root, "foo", None, &mut context), Ok(()));
+	assert_eq!(repl::poke(&mut root, "foo", None, &mut context), Ok(true));
 	assert_eq!(context, expected);
 	context.clear();
-	assert_eq!(repl::poke(&mut root, "", None, &mut context), Ok(()));
+	assert_eq!(repl::poke(&mut root, "", None, &mut context), Ok(true));
 	assert_eq!(context, "foo.before is \"1\"\nfoo…\nfoo.after is \"2\"\n");
 }
 
@@ -130,15 +149,17 @@ fn namespaces_work_without_list_nodes() {
 		f(&mut Action("foo.command", |_, _| panic!("listed action was invoked")));
 	});
 	let mut context = String::new();
-	assert_eq!(repl::poke(&mut root, "foo.inner", None, &mut context), Ok(()));
+	assert_eq!(repl::poke(&mut root, "foo.inner", None, &mut context), Ok(true));
 	assert_eq!(context, "foo.inner.other is \"8\"\n");
-	assert_eq!(repl::set(&mut root, "foo.value", "13", &mut context), Ok(()));
+	assert_eq!(repl::set(&mut root, "foo.value", "13", &mut context), Ok(true));
 	assert_eq!(repl::get_value::<i32>(&mut root, "foo.value"), Some(13));
-	assert!(repl::reset(&mut root, "foo"));
+	assert_eq!(repl::reset(&mut root, "foo", &mut context), Ok(true));
 	context.clear();
 	repl::print(&mut root, "foo", &mut context);
 	assert_eq!(context, "foo.value is \"0\"\nfoo.inner.other is \"0\"\nfoo.command\n");
-	assert!(!repl::reset(&mut root, "missing"));
+	context.clear();
+	assert_eq!(repl::reset(&mut root, "missing", &mut context), Ok(false));
+	assert!(context.is_empty());
 }
 
 #[test]
@@ -153,7 +174,7 @@ fn change_callbacks_observe_values_in_visitor_order() {
 			f(&mut OnChange("value", |_, _| { observed.push(value.clone()); Ok(()) }));
 			f(&mut Action("value", |args, _| { action_args.push(args.to_owned()); Ok(()) }));
 		});
-		assert_eq!(repl::poke(&mut root, "value", args, &mut NullContext), Ok(()));
+		assert_eq!(repl::poke(&mut root, "value", args, &mut NullContext), Ok(true));
 		assert_eq!(action_args, [args.unwrap_or("")]);
 		if let Some(args) = args {
 			assert_eq!(observed, ["old", args]);
@@ -166,30 +187,43 @@ fn change_callbacks_observe_values_in_visitor_order() {
 
 #[test]
 fn resets_apply_to_descendants_and_run_only_change_callbacks() {
-	for all in [false, true] {
+	for (all, fail) in [(false, false), (false, true), (true, false), (true, true)] {
 		let mut flat = 9;
 		let mut nested = 8;
 		let mut outside = 7;
 		let mut observed = alloc::vec::Vec::new();
 		let mut child = Visit(|f| f(&mut Property("value", &mut nested, &0)));
 		let mut root = Visit(|f| {
-			f(&mut OnChange("foo.value", |args, _| {
+			f(&mut OnChange("foo.value", |args, context| {
 				assert!(args.is_empty());
 				observed.push(flat);
-				Err(ActionError)
+				if fail {
+					context.write_error("callback failed");
+					Err(ActionError)
+				}
+				else {
+					Ok(())
+				}
 			}));
 			f(&mut Property("foo.value", &mut flat, &0));
 			f(&mut List("foo", &mut child));
-			f(&mut OnChange("foo.value", |_, _| { observed.push(flat); Ok(()) }));
+			f(&mut OnChange("foo.value", |_, context| {
+				observed.push(flat);
+				writeln!(context, "reset to {flat}");
+				Ok(())
+			}));
 			f(&mut Action("foo.command", |_, _| panic!("ordinary action was invoked")));
 			f(&mut Property("foobar.value", &mut outside, &0));
 		});
-		if all {
-			repl::reset_all(&mut root);
+		let mut context = String::new();
+		let result = if all {
+			repl::reset_all(&mut root, &mut context).map(|()| true)
 		}
 		else {
-			assert!(repl::reset(&mut root, "foo"));
-		}
+			repl::reset(&mut root, "foo", &mut context)
+		};
+		assert_eq!(result, if fail { Err(ActionError) } else { Ok(true) });
+		assert_eq!(context, if fail { "error: callback failed\nreset to 0\n" } else { "reset to 0\n" });
 		assert_eq!((flat, nested, outside), (0, 0, if all { 0 } else { 7 }));
 		assert_eq!(observed, [9, 0]);
 	}
@@ -326,7 +360,7 @@ fn actions_can_access_context_data_and_write_output() {
 		Ok(())
 	})));
 	let mut context = Context { output: String::new(), calls: 0 };
-	assert_eq!(repl::invoke(&mut root, "run", "caf", &mut context), Ok(()));
+	assert_eq!(repl::invoke(&mut root, "run", "caf", &mut context), Ok(true));
 	assert_eq!(context.calls, 1);
 	assert_eq!(context.output, "café\n");
 	assert_eq!(repl::invoke(&mut root, "run", "", &mut NullContext), Err(ActionError));
@@ -341,6 +375,6 @@ fn output_errors_do_not_abort_actions() {
 		called = true;
 		Ok(())
 	})));
-	assert_eq!(repl::invoke(&mut root, "run", "", &mut IoWriter(&mut [][..])), Ok(()));
+	assert_eq!(repl::invoke(&mut root, "run", "", &mut IoWriter(&mut [][..])), Ok(true));
 	assert!(called);
 }
