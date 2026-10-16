@@ -42,13 +42,6 @@ pub trait IProperty: INode {
 	/// Returns the state of the property.
 	fn state(&self) -> PropState;
 
-	/// Returns the flags associated with the property.
-	///
-	/// The meaning of this value is defined by the caller.
-	fn flags(&self) -> u32 {
-		0
-	}
-
 	/// Returns the name of the concrete type.
 	#[cfg(feature = "type_name")]
 	fn type_name(&self) -> &str {
@@ -70,7 +63,6 @@ impl fmt::Debug for dyn IProperty + '_ {
 		debug.field("value", &self.get_value());
 		debug.field("default", &self.default_value());
 		debug.field("state", &self.state());
-		debug.field("flags", &self.flags());
 		#[cfg(feature = "type_name")]
 		debug.field("type", &self.type_name());
 		debug.field("values", &self.values());
@@ -104,7 +96,7 @@ impl<'a, T> Property<'a, T> {
 
 impl<'a, T> INode for Property<'a, T>
 	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: error::Error + Send + Sync + 'static
+	      T::Err: fmt::Display
 {
 	fn name(&self) -> &str {
 		self.name
@@ -117,7 +109,7 @@ impl<'a, T> INode for Property<'a, T>
 
 impl<'a, T> IProperty for Property<'a, T>
 	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: error::Error + Send + Sync + 'static
+	      T::Err: fmt::Display
 {
 	fn get_value(&self) -> &dyn IValue {
 		&*self.variable
@@ -215,7 +207,7 @@ impl<'a, T> ClampedProp<'a, T> {
 
 impl<'a, T> INode for ClampedProp<'a, T>
 	where T: Clone + PartialEq + PartialOrd + fmt::Display + FromStr,
-	      T::Err: error::Error + Send + Sync + 'static
+	      T::Err: fmt::Display
 {
 	fn name(&self) -> &str {
 		self.name
@@ -228,7 +220,7 @@ impl<'a, T> INode for ClampedProp<'a, T>
 
 impl<'a, T> IProperty for ClampedProp<'a, T>
 	where T: Clone + PartialEq + PartialOrd + fmt::Display + FromStr,
-	      T::Err: error::Error + Send + Sync + 'static
+	      T::Err: fmt::Display
 {
 	fn get_value(&self) -> &dyn IValue {
 		&*self.variable
@@ -373,7 +365,7 @@ impl<T> OwnedProp<T> {
 
 impl<T> INode for OwnedProp<T>
 	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: error::Error + Send + Sync + 'static
+	      T::Err: fmt::Display
 {
 	fn name(&self) -> &str {
 		&self.name
@@ -386,7 +378,7 @@ impl<T> INode for OwnedProp<T>
 
 impl<T> IProperty for OwnedProp<T>
 	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: error::Error + Send + Sync + 'static
+	      T::Err: fmt::Display
 {
 	fn get_value(&self) -> &dyn IValue {
 		&self.variable
