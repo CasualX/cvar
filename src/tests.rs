@@ -109,9 +109,9 @@ fn traversal_combines_lists_and_dotted_names() {
 	let mut context = String::new();
 	assert_eq!(repl::poke(&mut root, "foo.bar", Some("ignored"), &mut context), Ok(true));
 	assert_eq!(context, concat!(
-		"foo.bar.baz is \"1\"\n",
-		"foo.bar.baz is \"2\"\n",
-		"foo.bar.baz is \"3\"\n",
+		"foo.bar.baz \"1\"\n",
+		"foo.bar.baz \"2\"\n",
+		"foo.bar.baz \"3\"\n",
 		"foo.bar.baz\n",
 	));
 }
@@ -122,13 +122,13 @@ fn listing_preserves_order_without_invoking_actions() {
 	let mut context = String::new();
 	repl::print(&mut root, "foo", &mut context);
 	assert_eq!(context, concat!(
-		"foo.before is \"1\"\n",
+		"foo.before \"1\"\n",
 		"foo…\n",
-		"foo.int is \"13\"\n",
-		"foo.float is \"-0.1\"\n",
-		"foo.string is \"groot\"\n",
+		"foo.int \"13\"\n",
+		"foo.float \"-0.1\"\n",
+		"foo.string \"groot\"\n",
 		"foo.action\n",
-		"foo.after is \"2\"\n",
+		"foo.after \"2\"\n",
 	));
 	let expected = context.replace("foo…\n", "");
 	context.clear();
@@ -136,7 +136,7 @@ fn listing_preserves_order_without_invoking_actions() {
 	assert_eq!(context, expected);
 	context.clear();
 	assert_eq!(repl::poke(&mut root, "", None, &mut context), Ok(true));
-	assert_eq!(context, "foo.before is \"1\"\nfoo…\nfoo.after is \"2\"\n");
+	assert_eq!(context, "foo.before \"1\"\nfoo…\nfoo.after \"2\"\n");
 }
 
 #[test]
@@ -150,13 +150,13 @@ fn namespaces_work_without_list_nodes() {
 	});
 	let mut context = String::new();
 	assert_eq!(repl::poke(&mut root, "foo.inner", None, &mut context), Ok(true));
-	assert_eq!(context, "foo.inner.other is \"8\"\n");
+	assert_eq!(context, "foo.inner.other \"8\"\n");
 	assert_eq!(repl::set(&mut root, "foo.value", "13", &mut context), Ok(true));
 	assert_eq!(repl::get_value::<i32>(&mut root, "foo.value"), Some(13));
 	assert_eq!(repl::reset(&mut root, "foo", &mut context), Ok(true));
 	context.clear();
 	repl::print(&mut root, "foo", &mut context);
-	assert_eq!(context, "foo.value is \"0\"\nfoo.inner.other is \"0\"\nfoo.command\n");
+	assert_eq!(context, "foo.value \"0\"\nfoo.inner.other \"0\"\nfoo.command\n");
 	context.clear();
 	assert_eq!(repl::reset(&mut root, "missing", &mut context), Ok(false));
 	assert!(context.is_empty());

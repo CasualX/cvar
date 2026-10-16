@@ -41,7 +41,7 @@ DEMOS = [
         "example": "program-state",
         "args": [],
         "commands": ["", "number 13", "poke! the value is", "text", "number nope", "number"],
-        "expected": ['text is "the value is: 13"', 'error: invalid digit found in string\n'],
+        "expected": ['text "the value is: 13"', 'error: invalid digit found in string\n'],
     },
     {
         "name": "nesting-techniques",
@@ -49,7 +49,7 @@ DEMOS = [
         "example": "nesting-techniques",
         "args": [],
         "commands": ["foo", "foo.bool false", "foo.int 7", "foo.string", "foo.float 2.5", "foo.string"],
-        "expected": ['foo.bool is "false"', 'foo.string is "0"', 'foo.string is "2.5"'],
+        "expected": ['foo.bool "false"', 'foo.string "0"', 'foo.string "2.5"'],
     },
     {
         "name": "runtime-properties",
@@ -70,7 +70,7 @@ DEMOS = [
             "destroy! player.name",
             "player",
         ],
-        "expected": ['player.health is "75"', 'player.name is "Ada"', 'error: path "player.speed" does not exist\n', 'error: path "player" does not exist\n'],
+        "expected": ['player.health "75"', 'player.name "Ada"', 'error: path "player.speed" does not exist\n', 'error: path "player" does not exist\n'],
     },
 ]
 

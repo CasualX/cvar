@@ -10,7 +10,7 @@ pub mod parse;
 
 /// Pokes the cvar tree.
 ///
-/// This function combines the behavior of [`print`], [`get`], [`set`], and [`invoke`].
+/// This function combines the behavior of [`print()`], [`get`], [`set`], and [`invoke`].
 ///
 /// Returns `Ok(true)` if the path or any dotted descendants matched and all operations succeeded,
 /// `Ok(false)` if nothing matched, or `Err(ActionError)` if a property update or action failed.
@@ -56,14 +56,14 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 						result = result.and(status);
 						if status.is_ok() {
 							let value = prop.display_value().to_string();
-							// cvar.prop is "true"
-							writeln!(context, "{path} is {value:?}");
+							// cvar.prop "true"
+							writeln!(context, "{path} {value:?}");
 						}
 					}
 					else {
 						let value = prop.display_value().to_string();
-						// cvar.prop is "true"
-						writeln!(context, "{path} is {value:?}");
+						// cvar.prop "true"
+						writeln!(context, "{path} {value:?}");
 					}
 				},
 				Node::List(_) => {}, // `walk` visits list children after this callback returns `true`.
@@ -87,7 +87,7 @@ fn _print_node(node: &mut dyn INode, path: &str, context: &mut dyn IContext) {
 	match node.as_node() {
 		Node::Prop(prop) => {
 			let value = prop.display_value().to_string();
-			write!(context, "{path} is {value:?}");
+			write!(context, "{path} {value:?}");
 		},
 		Node::List(_) => {
 			context.write_str(path);

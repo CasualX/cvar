@@ -132,11 +132,11 @@ fn hex_properties_preserve_typed_access() {
 	}
 	let mut context = String::new();
 	assert_eq!(repl::poke(&mut root, "borrowed", Some("0xff"), &mut context), Ok(true));
-	assert_eq!(context, "borrowed is \"0xff\"\n");
+	assert_eq!(context, "borrowed \"0xff\"\n");
 	assert_eq!(repl::get_value::<u32>(&mut root, "borrowed"), Some(255));
 	context.clear();
 	repl::print(&mut root, "borrowed", &mut context);
-	assert_eq!(context, "borrowed is \"0xff\"\n");
+	assert_eq!(context, "borrowed \"0xff\"\n");
 	assert_eq!(repl::set_value(&mut root, "borrowed", &9u32, &mut NullContext), Ok(true));
 	assert_eq!(repl::get(&mut root, "borrowed").as_deref(), Some("0x9"));
 	assert_eq!(repl::set(&mut root, "clamped", "0xff", &mut NullContext), Ok(true));

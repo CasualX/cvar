@@ -2,15 +2,15 @@
   "program-state": {
     "title": "cvar / ProgramState",
     "launch": "cargo run --quiet --example program-state",
-    "startup": "Hit enter to list the properties and actions.\nRead with <name>, assign with <name> <value>, invoke with poke! <text>.\n",
+    "startup": "Hit enter to list the properties and actions.\nRead with <name>, assign with <name> <value>, invoke with poke! <text>.\nQuote values to preserve spaces or escapes; text \"\" clears the text.\n",
     "steps": [
       {
         "command": "",
-        "output": "number is \"42\"\ntext is \"\"\npoke!\n"
+        "output": "number \"42\"\ntext \"\"\npoke!\n"
       },
       {
         "command": "number 13",
-        "output": "number is \"13\"\n"
+        "output": "number \"13\"\n"
       },
       {
         "command": "poke! the value is",
@@ -18,7 +18,7 @@
       },
       {
         "command": "text",
-        "output": "text is \"the value is: 13\"\n"
+        "output": "text \"the value is: 13\"\n"
       },
       {
         "command": "number nope",
@@ -26,7 +26,7 @@
       },
       {
         "command": "number",
-        "output": "number is \"13\"\n"
+        "output": "number \"13\"\n"
       }
     ]
   },
@@ -37,27 +37,27 @@
     "steps": [
       {
         "command": "foo",
-        "output": "foo.bool is \"true\"\nfoo.int\nfoo.int is \"0\"\nfoo.float is \"0\"\nfoo.float\nfoo.string is \"\"\n"
+        "output": "foo.bool \"true\"\nfoo.int\nfoo.int \"0\"\nfoo.float \"0\"\nfoo.float\nfoo.string \"\"\n"
       },
       {
         "command": "foo.bool false",
-        "output": "foo.bool is \"false\"\n"
+        "output": "foo.bool \"false\"\n"
       },
       {
         "command": "foo.int 7",
-        "output": "Before int is changed!\nfoo.int is \"7\"\n"
+        "output": "Before int is changed!\nfoo.int \"7\"\n"
       },
       {
         "command": "foo.string",
-        "output": "foo.string is \"0\"\n"
+        "output": "foo.string \"0\"\n"
       },
       {
         "command": "foo.float 2.5",
-        "output": "foo.float is \"2.5\"\nAfter float has changed!\n"
+        "output": "foo.float \"2.5\"\nAfter float has changed!\n"
       },
       {
         "command": "foo.string",
-        "output": "foo.string is \"2.5\"\n"
+        "output": "foo.string \"2.5\"\n"
       }
     ]
   },
@@ -80,15 +80,15 @@
       },
       {
         "command": "player",
-        "output": "player.health is \"100\"\nplayer.speed is \"4.5\"\nplayer.name is \"Ada\"\n"
+        "output": "player.health \"100\"\nplayer.speed \"4.5\"\nplayer.name \"Ada\"\n"
       },
       {
         "command": "player.health 75",
-        "output": "player.health is \"75\"\n"
+        "output": "player.health \"75\"\n"
       },
       {
         "command": "player",
-        "output": "player.health is \"75\"\nplayer.speed is \"4.5\"\nplayer.name is \"Ada\"\n"
+        "output": "player.health \"75\"\nplayer.speed \"4.5\"\nplayer.name \"Ada\"\n"
       },
       {
         "command": "destroy! player.speed",
@@ -96,7 +96,7 @@
       },
       {
         "command": "player",
-        "output": "player.health is \"75\"\nplayer.name is \"Ada\"\n"
+        "output": "player.health \"75\"\nplayer.name \"Ada\"\n"
       },
       {
         "command": "player.speed",
