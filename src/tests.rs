@@ -250,7 +250,7 @@ fn writable_properties_support_a_shared_lifecycle() {
 		assert_eq!(prop.set_value(&Mode::First, &mut NullContext), Ok(()));
 		assert_eq!(prop.state(), PropState::Default);
 		assert_eq!(prop.set_value(&Mode::Second, &mut NullContext), Ok(()));
-		prop.reset();
+		assert_eq!(prop.reset(&mut NullContext), Ok(()));
 		assert_eq!(prop.get_value().downcast_ref::<Mode>(), Some(&Mode::First));
 	}
 }
@@ -270,7 +270,9 @@ fn read_only_properties_reject_changes() {
 	assert_eq!(prop.set("0", &mut context), Err(ActionError));
 	assert_eq!(prop.set_value(&default, &mut context), Err(ActionError));
 	assert_eq!(context, "error: cannot set read-only property\nerror: cannot set read-only property\n");
-	prop.reset();
+	context.clear();
+	assert_eq!(prop.reset(&mut context), Err(ActionError));
+	assert_eq!(context, "error: cannot reset read-only property\n");
 	assert_eq!(prop.get_value().downcast_ref::<Readout>().unwrap().0, 42);
 	assert_eq!(prop.state(), PropState::UserSet);
 }
@@ -289,10 +291,10 @@ fn clamped_properties_enforce_bounds_and_reject_invalid_values() {
 		let mut prop = ClampedProp("value", &mut value, &5, min.as_ref(), max.as_ref());
 		assert_eq!(prop.set(&input.to_string(), &mut NullContext), Ok(()));
 		assert_eq!(prop.get_value().downcast_ref::<i32>(), Some(&expected));
-		prop.reset();
+		assert_eq!(prop.reset(&mut NullContext), Ok(()));
 		assert_eq!(prop.set_value(&input, &mut NullContext), Ok(()));
 		assert_eq!(prop.get_value().downcast_ref::<i32>(), Some(&expected));
-		prop.reset();
+		assert_eq!(prop.reset(&mut NullContext), Ok(()));
 		assert_eq!(value, 5);
 	}
 	let mut value = 0.5f32;

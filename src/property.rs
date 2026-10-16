@@ -33,8 +33,8 @@ pub trait IProperty: INode {
 
 	/// Resets the value to its default.
 	///
-	/// If this operation fails (for eg. read-only properties), it does so silently.
-	fn reset(&mut self);
+	/// Returns `Err(ActionError)` on failure and writes error details to the context.
+	fn reset(&mut self, context: &mut dyn IContext) -> ActionResult;
 
 	/// Gets a read-only view of the default value.
 	fn default_value(&self) -> &dyn IValue;
@@ -137,8 +137,9 @@ impl<'a, T> IProperty for Property<'a, T>
 		}
 	}
 
-	fn reset(&mut self) {
+	fn reset(&mut self, _context: &mut dyn IContext) -> ActionResult {
 		self.variable.clone_from(self.default);
+		Ok(())
 	}
 
 	fn default_value(&self) -> &dyn IValue {
@@ -258,9 +259,10 @@ impl<'a, T> IProperty for ClampedProp<'a, T>
 		}
 	}
 
-	fn reset(&mut self) {
+	fn reset(&mut self, _context: &mut dyn IContext) -> ActionResult {
 		// Default value not clamped against bounds...
 		self.variable.clone_from(self.default);
+		Ok(())
 	}
 
 	fn default_value(&self) -> &dyn IValue {
@@ -324,7 +326,10 @@ impl<'a, T: PartialEq + IValue> IProperty for ReadOnlyProp<'a, T> {
 		Err(ActionError)
 	}
 
-	fn reset(&mut self) {}
+	fn reset(&mut self, context: &mut dyn IContext) -> ActionResult {
+		context.write_error("cannot reset read-only property");
+		Err(ActionError)
+	}
 
 	fn default_value(&self) -> &dyn IValue {
 		self.default
@@ -406,8 +411,9 @@ impl<T> IProperty for OwnedProp<T>
 		}
 	}
 
-	fn reset(&mut self) {
+	fn reset(&mut self, _context: &mut dyn IContext) -> ActionResult {
 		self.variable.clone_from(&self.default);
+		Ok(())
 	}
 
 	fn default_value(&self) -> &dyn IValue {

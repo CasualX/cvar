@@ -200,8 +200,8 @@ pub fn get_value<T: Clone + 'static>(root: &mut dyn IVisit, path: &str) -> Optio
 /// Resets properties to their default.
 ///
 /// Resets the exact path and all dotted descendants.
-/// Returns `Ok(true)` if the path or any descendants matched and all change callbacks succeeded,
-/// `Ok(false)` if nothing matched, or `Err(ActionError)` if any change callback failed.
+/// Returns `Ok(true)` if the path or any descendants matched and all operations succeeded,
+/// `Ok(false)` if nothing matched, or `Err(ActionError)` if a property reset or change callback failed.
 ///
 /// Matching actions marked as change callbacks are invoked in visitor order with empty arguments
 /// and the supplied context. Other actions are skipped.
@@ -218,7 +218,7 @@ pub fn reset(root: &mut dyn IVisit, path: &str, context: &mut dyn IContext) -> R
 		}
 		found = true;
 		match node.as_node() {
-			Node::Prop(prop) => prop.reset(),
+			Node::Prop(prop) => result = result.and(prop.reset(context)),
 			Node::List(_) => {}, // `walk` visits list children after this callback returns `true`.
 			Node::Action(act) => {
 				if act.metadata().change_callback {
@@ -236,14 +236,14 @@ pub fn reset(root: &mut dyn IVisit, path: &str, context: &mut dyn IContext) -> R
 /// Actions marked as change callbacks are invoked in visitor order with empty arguments
 /// and the supplied context. Other actions are skipped.
 ///
-/// Returns `Err(ActionError)` if any change callback failed.
+/// Returns `Err(ActionError)` if any property reset or change callback failed.
 /// Error details are written to the context. All nodes are visited, even after a failure.
 #[inline]
 pub fn reset_all(root: &mut dyn IVisit, context: &mut dyn IContext) -> ActionResult {
 	let mut result = Ok(());
 	walk(root, |_, node| {
 		match node.as_node() {
-			Node::Prop(prop) => prop.reset(),
+			Node::Prop(prop) => result = result.and(prop.reset(context)),
 			Node::List(_) => {}, // `walk` visits list children after this callback returns `true`.
 			Node::Action(act) => {
 				if act.metadata().change_callback {
