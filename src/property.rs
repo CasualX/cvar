@@ -21,6 +21,11 @@ pub trait IProperty: INode {
 	/// Gets a read-only view of the value.
 	fn get_value(&self) -> &dyn IValue;
 
+	/// Returns a display view of the current value.
+	fn display_value(&self) -> &dyn fmt::Display {
+		self.get_value()
+	}
+
 	/// Sets the value.
 	///
 	/// Returns `Err(ActionError)` on failure and writes error details to the context.
@@ -73,30 +78,45 @@ impl fmt::Debug for dyn IProperty + '_ {
 //----------------------------------------------------------------
 
 /// Property node.
-pub struct Property<'a, T: 'static> {
+pub struct Property<'a, T: 'static, F = DefaultFormat> {
 	name: &'a str,
 	variable: &'a mut T,
 	default: &'a T,
+	format: F,
 }
 
 /// Creates a new Property instance.
 #[allow(non_snake_case)]
 #[inline]
 pub const fn Property<'a, T>(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
-	Property { name, variable, default }
+	Property { name, variable, default, format: DefaultFormat }
 }
 
 impl<'a, T> Property<'a, T> {
 	/// Creates a new instance.
 	#[inline]
 	pub const fn new(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
-		Property { name, variable, default }
+		Property { name, variable, default, format: DefaultFormat }
 	}
 }
 
-impl<'a, T> INode for Property<'a, T>
-	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: fmt::Display
+impl<'a, T, F> Property<'a, T, F> {
+	/// Sets how the value is displayed and parsed, preserving its concrete type.
+	#[inline]
+	pub fn with_format<G>(self, format: G) -> Property<'a, T, G> {
+		Property { name: self.name, variable: self.variable, default: self.default, format }
+	}
+}
+
+impl<T, F: ValueDisplay<T>> fmt::Display for Property<'_, T, F> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		self.format.fmt(self.variable, f)
+	}
+}
+
+impl<'a, T, F> INode for Property<'a, T, F>
+	where T: Clone + PartialEq + IValue,
+	      F: ValueDisplay<T> + ValueFromStr<T>
 {
 	fn name(&self) -> &str {
 		self.name
@@ -107,12 +127,16 @@ impl<'a, T> INode for Property<'a, T>
 	}
 }
 
-impl<'a, T> IProperty for Property<'a, T>
-	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: fmt::Display
+impl<'a, T, F> IProperty for Property<'a, T, F>
+	where T: Clone + PartialEq + IValue,
+	      F: ValueDisplay<T> + ValueFromStr<T>
 {
 	fn get_value(&self) -> &dyn IValue {
 		&*self.variable
+	}
+
+	fn display_value(&self) -> &dyn fmt::Display {
+		self
 	}
 
 	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
@@ -125,7 +149,7 @@ impl<'a, T> IProperty for Property<'a, T>
 	}
 
 	fn set(&mut self, val: &str, context: &mut dyn IContext) -> ActionResult {
-		match val.parse::<T>() {
+		match self.format.parse(val) {
 			Ok(val) => {
 				*self.variable = val;
 				Ok(())
@@ -183,32 +207,47 @@ fn clamp_bounds_inclusive<'a, T: PartialOrd>(mut val: &'a T, min: Option<&'a T>,
 /// `NaN`) and invalid bounds are rejected, leaving the variable unchanged.
 ///
 /// The default value should be within the inclusive bounds.
-pub struct ClampedProp<'a, T: 'static> {
+pub struct ClampedProp<'a, T: 'static, F = DefaultFormat> {
 	name: &'a str,
 	variable: &'a mut T,
 	default: &'a T,
 	min: Option<&'a T>,
 	max: Option<&'a T>,
+	format: F,
 }
 
 /// Creates a new ClampedProp instance.
 #[allow(non_snake_case)]
 #[inline]
 pub const fn ClampedProp<'a, T>(name: &'a str, variable: &'a mut T, default: &'a T, min: Option<&'a T>, max: Option<&'a T>) -> ClampedProp<'a, T> {
-	ClampedProp { name, variable, default, min, max }
+	ClampedProp { name, variable, default, min, max, format: DefaultFormat }
 }
 
 impl<'a, T> ClampedProp<'a, T> {
 	/// Creates a new instance.
 	#[inline]
 	pub const fn new(name: &'a str, variable: &'a mut T, default: &'a T, min: Option<&'a T>, max: Option<&'a T>) -> ClampedProp<'a, T> {
-		ClampedProp { name, variable, default, min, max }
+		ClampedProp { name, variable, default, min, max, format: DefaultFormat }
 	}
 }
 
-impl<'a, T> INode for ClampedProp<'a, T>
-	where T: Clone + PartialEq + PartialOrd + fmt::Display + FromStr,
-	      T::Err: fmt::Display
+impl<'a, T, F> ClampedProp<'a, T, F> {
+	/// Sets how the value is displayed and parsed. Parsed values are still clamped.
+	#[inline]
+	pub fn with_format<G>(self, format: G) -> ClampedProp<'a, T, G> {
+		ClampedProp { name: self.name, variable: self.variable, default: self.default, min: self.min, max: self.max, format }
+	}
+}
+
+impl<T, F: ValueDisplay<T>> fmt::Display for ClampedProp<'_, T, F> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		self.format.fmt(self.variable, f)
+	}
+}
+
+impl<'a, T, F> INode for ClampedProp<'a, T, F>
+	where T: Clone + PartialEq + PartialOrd + IValue,
+	      F: ValueDisplay<T> + ValueFromStr<T>
 {
 	fn name(&self) -> &str {
 		self.name
@@ -219,12 +258,16 @@ impl<'a, T> INode for ClampedProp<'a, T>
 	}
 }
 
-impl<'a, T> IProperty for ClampedProp<'a, T>
-	where T: Clone + PartialEq + PartialOrd + fmt::Display + FromStr,
-	      T::Err: fmt::Display
+impl<'a, T, F> IProperty for ClampedProp<'a, T, F>
+	where T: Clone + PartialEq + PartialOrd + IValue,
+	      F: ValueDisplay<T> + ValueFromStr<T>
 {
 	fn get_value(&self) -> &dyn IValue {
 		&*self.variable
+	}
+
+	fn display_value(&self) -> &dyn fmt::Display {
+		self
 	}
 
 	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
@@ -241,7 +284,7 @@ impl<'a, T> IProperty for ClampedProp<'a, T>
 	}
 
 	fn set(&mut self, val: &str, context: &mut dyn IContext) -> ActionResult {
-		match val.parse::<T>() {
+		match self.format.parse(val) {
 			Ok(val) => {
 				if let Some(val) = clamp_bounds_inclusive(&val, self.min, self.max) {
 					self.variable.clone_from(val);
@@ -280,28 +323,43 @@ impl<'a, T> IProperty for ClampedProp<'a, T>
 //----------------------------------------------------------------
 
 /// Read-only property node.
-pub struct ReadOnlyProp<'a, T: 'static> {
+pub struct ReadOnlyProp<'a, T: 'static, F = DefaultFormat> {
 	name: &'a str,
 	variable: &'a T,
 	default: &'a T,
+	format: F,
 }
 
 /// Creates a new ReadOnlyProp instance.
 #[allow(non_snake_case)]
 #[inline]
 pub const fn ReadOnlyProp<'a, T>(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
-	ReadOnlyProp { name, variable, default }
+	ReadOnlyProp { name, variable, default, format: DefaultFormat }
 }
 
 impl<'a, T> ReadOnlyProp<'a, T> {
 	/// Creates a new instance.
 	#[inline]
 	pub const fn new(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
-		ReadOnlyProp { name, variable, default }
+		ReadOnlyProp { name, variable, default, format: DefaultFormat }
 	}
 }
 
-impl<'a, T: PartialEq + IValue> INode for ReadOnlyProp<'a, T> {
+impl<'a, T, F> ReadOnlyProp<'a, T, F> {
+	/// Sets how the value is displayed, preserving its concrete type.
+	#[inline]
+	pub fn with_format<G>(self, format: G) -> ReadOnlyProp<'a, T, G> {
+		ReadOnlyProp { name: self.name, variable: self.variable, default: self.default, format }
+	}
+}
+
+impl<T, F: ValueDisplay<T>> fmt::Display for ReadOnlyProp<'_, T, F> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		self.format.fmt(self.variable, f)
+	}
+}
+
+impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>> INode for ReadOnlyProp<'a, T, F> {
 	fn name(&self) -> &str {
 		self.name
 	}
@@ -311,9 +369,13 @@ impl<'a, T: PartialEq + IValue> INode for ReadOnlyProp<'a, T> {
 	}
 }
 
-impl<'a, T: PartialEq + IValue> IProperty for ReadOnlyProp<'a, T> {
+impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>> IProperty for ReadOnlyProp<'a, T, F> {
 	fn get_value(&self) -> &dyn IValue {
 		self.variable
+	}
+
+	fn display_value(&self) -> &dyn fmt::Display {
+		self
 	}
 
 	fn set_value(&mut self, _val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
@@ -347,30 +409,45 @@ impl<'a, T: PartialEq + IValue> IProperty for ReadOnlyProp<'a, T> {
 
 /// Property node which owns its variable.
 #[non_exhaustive]
-pub struct OwnedProp<T: 'static> {
+pub struct OwnedProp<T: 'static, F = DefaultFormat> {
 	pub name: String,
 	pub variable: T,
 	pub default: T,
+	format: F,
 }
 
 /// Creates a new OwnedProp instance.
 #[allow(non_snake_case)]
 #[inline]
 pub const fn OwnedProp<T>(name: String, variable: T, default: T) -> OwnedProp<T> {
-	OwnedProp { name, variable, default }
+	OwnedProp { name, variable, default, format: DefaultFormat }
 }
 
 impl<T> OwnedProp<T> {
 	/// Creates a new instance.
 	#[inline]
 	pub const fn new(name: String, variable: T, default: T) -> OwnedProp<T> {
-		OwnedProp { name, variable, default }
+		OwnedProp { name, variable, default, format: DefaultFormat }
 	}
 }
 
-impl<T> INode for OwnedProp<T>
-	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: fmt::Display
+impl<T, F> OwnedProp<T, F> {
+	/// Sets how the value is displayed and parsed, preserving its concrete type.
+	#[inline]
+	pub fn with_format<G>(self, format: G) -> OwnedProp<T, G> {
+		OwnedProp { name: self.name, variable: self.variable, default: self.default, format }
+	}
+}
+
+impl<T, F: ValueDisplay<T>> fmt::Display for OwnedProp<T, F> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		self.format.fmt(&self.variable, f)
+	}
+}
+
+impl<T, F> INode for OwnedProp<T, F>
+	where T: Clone + PartialEq + IValue,
+	      F: ValueDisplay<T> + ValueFromStr<T>
 {
 	fn name(&self) -> &str {
 		&self.name
@@ -381,12 +458,16 @@ impl<T> INode for OwnedProp<T>
 	}
 }
 
-impl<T> IProperty for OwnedProp<T>
-	where T: Clone + PartialEq + fmt::Display + FromStr,
-	      T::Err: fmt::Display
+impl<T, F> IProperty for OwnedProp<T, F>
+	where T: Clone + PartialEq + IValue,
+	      F: ValueDisplay<T> + ValueFromStr<T>
 {
 	fn get_value(&self) -> &dyn IValue {
 		&self.variable
+	}
+
+	fn display_value(&self) -> &dyn fmt::Display {
+		self
 	}
 
 	fn set_value(&mut self, val: &dyn IValue, context: &mut dyn IContext) -> ActionResult {
@@ -399,7 +480,7 @@ impl<T> IProperty for OwnedProp<T>
 	}
 
 	fn set(&mut self, val: &str, context: &mut dyn IContext) -> ActionResult {
-		match val.parse::<T>() {
+		match self.format.parse(val) {
 			Ok(val) => {
 				self.variable = val;
 				Ok(())

@@ -55,13 +55,13 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 						};
 						result = result.and(status);
 						if status.is_ok() {
-							let value = prop.get_value().to_string();
+							let value = prop.display_value().to_string();
 							// cvar.prop is "true"
 							writeln!(context, "{path} is {value:?}");
 						}
 					}
 					else {
-						let value = prop.get_value().to_string();
+						let value = prop.display_value().to_string();
 						// cvar.prop is "true"
 						writeln!(context, "{path} is {value:?}");
 					}
@@ -86,7 +86,7 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 fn _print_node(node: &mut dyn INode, path: &str, context: &mut dyn IContext) {
 	match node.as_node() {
 		Node::Prop(prop) => {
-			let value = prop.get_value().to_string();
+			let value = prop.display_value().to_string();
 			write!(context, "{path} is {value:?}");
 		},
 		Node::List(_) => {
@@ -147,7 +147,7 @@ pub fn get(root: &mut dyn IVisit, path: &str) -> Option<String> {
 	let mut result = None;
 	find(root, path, |node| {
 		if let Node::Prop(prop) = node.as_node() {
-			result = Some(prop.get_value().to_string());
+			result = Some(prop.display_value().to_string());
 		}
 	});
 	result

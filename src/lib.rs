@@ -70,26 +70,23 @@ use std::io;
 
 pub mod repl;
 
-mod enums;
-pub use enums::ParseEnumError;
-
-mod value;
-pub use self::value::*;
-
-mod context;
-pub use self::context::*;
-
 mod action;
-pub use self::action::*;
-
-mod property;
-pub use self::property::*;
-
+mod context;
+mod enums;
+mod hex;
 mod list;
-pub use self::list::*;
-
 mod node;
+mod property;
+mod value;
+
+pub use self::action::*;
+pub use self::context::*;
+pub use self::enums::*;
+pub use self::hex::*;
+pub use self::list::*;
 pub use self::node::*;
+pub use self::property::*;
+pub use self::value::*;
 
 #[cfg(test)]
 mod tests;
