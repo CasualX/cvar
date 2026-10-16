@@ -18,6 +18,12 @@ pub mod parse;
 /// Error details are written to the context. All matching nodes are visited, even after a failure.
 ///
 /// Change callbacks are only invoked when `args` is `Some`, ordinary actions are always invoked.
+/// See [`OnChange`] for the notification contract.
+///
+/// Property arguments are decoded with [`parse::string`],
+/// allowing empty strings, surrounding whitespace, and escaped characters.
+/// Actions, including change callbacks, receive the original arguments.
+/// Use [`set`] or [`set_value`] to assign values verbatim.
 ///
 /// Nodes below the path's dotted prefix are listed, including nodes with dotted
 /// names and descendants of real lists.
@@ -40,7 +46,13 @@ pub fn poke(root: &mut dyn IVisit, path: &str, args: Option<&str>, context: &mut
 			match node.as_node() {
 				Node::Prop(prop) => {
 					if let Some(val) = args {
-						let status = prop.set(val, context);
+						let status = match parse::string(val) {
+							Ok(val) => prop.set(&val, context),
+							Err(err) => {
+								context.write_error(&err);
+								Err(ActionError)
+							},
+						};
 						result = result.and(status);
 						if status.is_ok() {
 							let value = prop.get_value().to_string();

@@ -26,6 +26,7 @@ impl error::Error for ActionError {}
 #[derive(Copy, Clone, Debug, Default, Eq, PartialEq)]
 pub struct ActionMetadata {
 	/// Invoke this action during resets, in visitor order, with empty arguments and the supplied context.
+	/// See [`OnChange`] for the intended use and assignment behavior.
 	pub change_callback: bool,
 }
 
@@ -76,7 +77,36 @@ pub const fn Action<'a, F: FnMut(&str, &mut dyn IContext) -> ActionResult>(name:
 	Action::new(name, invoke)
 }
 
-/// Creates a new OnChange instance.
+/// Creates a lightweight change notification for a property at the same path.
+///
+/// Use this to mark state for later checking or recomputation. The notification
+/// means that an assignment or reset was attempted, not that the value actually
+/// changed. It also runs when an assignment fails or assigns the existing value.
+/// Check the current state and perform any expensive work after traversal.
+///
+/// Callbacks run in visitor order, so placing one before or after the property
+/// determines which state it can observe. Returning an error does not cancel
+/// later assignments or callbacks, and does not roll back earlier changes.
+///
+/// Assignments pass the original argument string, which can differ from the
+/// stored value after parsing or clamping. Resets pass an empty argument string.
+/// [`repl::poke`] skips these callbacks when reading or listing properties.
+///
+/// ```
+/// let mut value = 0;
+/// let mut needs_check = false;
+/// let mut root = cvar::Visit(|f| {
+///     f(&mut cvar::Property("value", &mut value, &0));
+///     f(&mut cvar::OnChange("value", |_, _| {
+///         needs_check = true;
+///         Ok(())
+///     }));
+/// });
+/// cvar::repl::set(&mut root, "value", "42", &mut cvar::NullContext).unwrap();
+/// assert!(needs_check);
+/// // Check the final state and apply changes outside the visitor.
+/// assert_eq!(value, 42);
+/// ```
 #[allow(non_snake_case)]
 #[inline]
 pub const fn OnChange<'a, F: FnMut(&str, &mut dyn IContext) -> ActionResult>(name: &'a str, invoke: F) -> Action<'a, F> {

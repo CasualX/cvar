@@ -1,8 +1,115 @@
 //! Simple command and argument parsing.
 
+use alloc::borrow::Cow;
+use alloc::string::String;
+use core::{error, fmt};
+
+/// A quoted string is incomplete or contains an invalid escape.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct ParseStringError;
+
+impl fmt::Display for ParseStringError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		f.write_str("invalid quoted string")
+	}
+}
+
+impl error::Error for ParseStringError {}
+
+/// Decodes a double-quoted string, or returns unquoted input unchanged.
+///
+/// Supports the escapes emitted by string [`Debug`](fmt::Debug) formatting:
+/// `\0`, `\t`, `\n`, `\r`, `\\`, `\"`, and `\u{...}`. Also accepts `\'`
+/// and ASCII `\xNN` escapes. Unicode escapes contain one to six hexadecimal
+/// digits, optionally separated or followed by underscores.
+///
+/// Input starting with `"` must be exactly one complete quoted string, with no
+/// trailing characters. Whitespace is preserved. Rust raw string syntax and
+/// escaped line continuations are not interpreted.
+///
+/// The result borrows the input unless escapes need decoding.
+///
+/// ```
+/// use cvar::repl::parse::string;
+///
+/// assert_eq!(string("Hello World").unwrap(), "Hello World");
+/// assert_eq!(string(r#""""#).unwrap(), "");
+/// assert_eq!(string(r#"" padded ""#).unwrap(), " padded ");
+/// assert_eq!(string(r#""line\n\u{1f980}""#).unwrap(), "line\n🦀");
+/// let original = "quotes: \" and backslash: \\ and nul: \0";
+/// assert_eq!(string(&format!("{original:?}")).unwrap(), original);
+/// assert!(string(r#""bad\q""#).is_err());
+/// ```
+pub fn string(input: &str) -> Result<Cow<'_, str>, ParseStringError> {
+	let Some(inner) = input.strip_prefix('"') else {
+		return Ok(Cow::Borrowed(input));
+	};
+	let inner = inner.strip_suffix('"').ok_or(ParseStringError)?;
+	let Some(first_escape) = inner.find(['\\', '"']) else {
+		return Ok(Cow::Borrowed(inner));
+	};
+	let mut output = String::with_capacity(inner.len());
+	output.push_str(&inner[..first_escape]);
+	let mut chars = inner[first_escape..].chars();
+	while let Some(c) = chars.next() {
+		match c {
+			'"' => return Err(ParseStringError),
+			'\\' => {
+				let escaped = match chars.next().ok_or(ParseStringError)? {
+					'0' => '\0',
+					't' => '\t',
+					'n' => '\n',
+					'r' => '\r',
+					'\\' => '\\',
+					'"' => '"',
+					'\'' => '\'',
+					'x' => {
+						let hi = chars.next().and_then(|c| c.to_digit(16)).ok_or(ParseStringError)?;
+						let lo = chars.next().and_then(|c| c.to_digit(16)).ok_or(ParseStringError)?;
+						let value = hi * 16 + lo;
+						if value > 0x7f {
+							return Err(ParseStringError);
+						}
+						char::from_u32(value).ok_or(ParseStringError)?
+					},
+					'u' => {
+						if chars.next() != Some('{') {
+							return Err(ParseStringError);
+						}
+						let mut value = chars.next().and_then(|c| c.to_digit(16)).ok_or(ParseStringError)?;
+						let mut digits = 1;
+						loop {
+							match chars.next().ok_or(ParseStringError)? {
+								'}' => break,
+								'_' => {},
+								c => {
+									let digit = c.to_digit(16).ok_or(ParseStringError)?;
+									digits += 1;
+									if digits > 6 {
+										return Err(ParseStringError);
+									}
+									value = value * 16 + digit;
+								},
+							}
+						}
+						char::from_u32(value).ok_or(ParseStringError)?
+					},
+					_ => return Err(ParseStringError),
+				};
+				output.push(escaped);
+			},
+			c => output.push(c),
+		}
+	}
+	Ok(Cow::Owned(output))
+}
+
 /// Splits on ASCII whitespace outside double quotes.
 ///
 /// Quotes remain in the tokens and may appear anywhere within a token.
+/// Inside quotes, a backslash escapes the next character for tokenization only;
+/// both characters remain in the token. Use [`string`] to decode a quoted token.
 /// An unmatched quote keeps the rest of the input in the same token.
 ///
 /// ```
@@ -52,8 +159,15 @@ impl<'a> Iterator for Split<'a> {
 			return None;
 		}
 		let mut quoted = false;
+		let mut escaped = false;
 		for (index, byte) in line.bytes().enumerate() {
-			if byte == b'"' {
+			if escaped {
+				escaped = false;
+			}
+			else if quoted && byte == b'\\' {
+				escaped = true;
+			}
+			else if byte == b'"' {
 				quoted = !quoted;
 			}
 			else if !quoted && byte.is_ascii_whitespace() {
@@ -133,3 +247,6 @@ fn value_of<'a>(arg: &'a str, id: &str) -> Option<&'a str> {
 pub fn positional(line: &str, index: usize) -> Option<&str> {
 	split(line).nth(index)
 }
+
+#[cfg(test)]
+mod tests;

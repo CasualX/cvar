@@ -28,6 +28,7 @@ fn main() {
 	};
 	println!("Hit enter to list the properties and actions.");
 	println!("Read with <name>, assign with <name> <value>, invoke with poke! <text>.");
+	println!(r#"Quote values to preserve spaces or escapes; text "" clears the text."#);
 
 	loop {
 		print!(">>> ");
