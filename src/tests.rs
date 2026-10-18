@@ -37,6 +37,20 @@ fn root() -> Root {
 }
 
 #[test]
+fn path_suggestions_complete_lists_properties_and_actions() {
+	let mut root = root();
+	assert_eq!(repl::paths(&mut root, ""), ["foo.before", "foo…", "foo.after"]);
+	assert_eq!(repl::paths(&mut root, "fo"), ["foo.before", "foo…", "foo.after"]);
+	assert_eq!(repl::paths(&mut root, "foo"), ["foo.before", "foo…", "foo.after"]);
+	assert_eq!(repl::paths(&mut root, "foo."), ["foo.before", "foo.int", "foo.float", "foo.string", "foo.action", "foo.after"]);
+	assert_eq!(repl::paths(&mut root, "foo.f"), ["foo.float"]);
+	assert_eq!(repl::paths(&mut root, "foo.int"), ["foo.int"]);
+	assert!(repl::paths(&mut root, "foo.int.").is_empty());
+	assert!(repl::paths(&mut root, "missing").is_empty());
+	assert!(repl::paths(&mut root, "FO").is_empty());
+}
+
+#[test]
 fn repl_reads_writes_and_reports_errors() {
 	let mut root = root();
 	let mut context = String::new();

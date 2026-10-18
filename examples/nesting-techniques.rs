@@ -57,25 +57,22 @@ fn main() {
 	println!("Hit enter to list all the cvars and their values.");
 	println!("Assign value to cvar with `<name> <value>`.");
 
+	prompt(&mut nested)
+}
+
+fn prompt(state: &mut dyn cvar::IVisit) {
+	use std::io::{self, Write};
 	loop {
-		// Read input from stdin
+		print!(">>> ");
+		_ = io::stdout().flush();
 		let mut line = String::new();
-		if read_line(&mut line) {
+		if io::stdin().read_line(&mut line).is_err() || line.is_empty() {
 			break;
 		}
-
 		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
 		let context: &mut dyn cvar::IContext = &mut cvar::IoWriter::stdout();
-		if let Ok(false) = cvar::repl::poke(&mut nested, path, args, context) {
+		if let Ok(false) = cvar::repl::poke(state, path, args, context) {
 			context.write_error(&format_args!("path {path:?} does not exist"));
 		}
 	}
-}
-
-// Reads a line from stdin and return true if there was a break
-pub fn read_line(line: &mut String) -> bool {
-	use std::io;
-	print!(">>> ");
-	_ = io::Write::flush(&mut io::stdout());
-	io::stdin().read_line(line).is_err() || line.is_empty()
 }

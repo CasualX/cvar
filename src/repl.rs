@@ -8,6 +8,25 @@ use super::*;
 
 pub mod parse;
 
+/// Suggests full paths that start with the partial path.
+pub fn paths(root: &mut dyn IVisit, partial: &str) -> Vec<String> {
+	let mut candidates = Vec::new();
+	walk(root, |path, node| {
+		if path.starts_with(partial) {
+			let mut candidate = path.to_owned();
+			if matches!(node.as_node(), Node::List(_)) {
+				candidate.push_str("…");
+			}
+			candidates.push(candidate);
+			false
+		}
+		else {
+			ComparePath::cmp(path, partial) == ComparePath::Ancestor
+		}
+	});
+	candidates
+}
+
 /// Pokes the cvar tree.
 ///
 /// This function combines the behavior of [`print()`], [`get`], [`set`], and [`invoke`].

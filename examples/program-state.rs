@@ -20,8 +20,6 @@ impl cvar::IVisit for ProgramState {
 }
 
 fn main() {
-	use std::io::{self, Write};
-
 	let mut program_state = ProgramState {
 		number: 42,
 		text: String::new(),
@@ -30,6 +28,11 @@ fn main() {
 	println!("Read with <name>, assign with <name> <value>, invoke with poke! <text>.");
 	println!(r#"Quote values to preserve spaces or escapes; text "" clears the text."#);
 
+	prompt(&mut program_state)
+}
+
+fn prompt(state: &mut dyn cvar::IVisit) {
+	use std::io::{self, Write};
 	loop {
 		print!(">>> ");
 		_ = io::stdout().flush();
@@ -39,7 +42,7 @@ fn main() {
 		}
 		let (path, args) = cvar::repl::parse::command(&line).unwrap_or(("", None));
 		let context: &mut dyn cvar::IContext = &mut cvar::IoWriter::stdout();
-		if let Ok(false) = cvar::repl::poke(&mut program_state, path, args, context) {
+		if let Ok(false) = cvar::repl::poke(state, path, args, context) {
 			context.write_error(&format_args!("path {path:?} does not exist"));
 		}
 	}
