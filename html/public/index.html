@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+    <title>cvar terminal</title>
+    <link rel="stylesheet" href="index.css">
+    <script defer src="index.js"></script>
+    <script defer src="alpine.min.js"></script>
+</head>
+<body x-data="terminalDemo">
+    <main class="terminal" aria-label="cvar terminal" :aria-busy="loading">
+        <header class="toolbar">
+            <span class="title">cvar</span>
+            <select aria-label="Example" :disabled="!ready" :value="selected" @change="choose(Number($event.target.value))">
+                <template x-for="(item, index) in examples" :key="item.file">
+                    <option :value="index" x-text="item.file"></option>
+                </template>
+            </select>
+            <div class="actions">
+                <button :disabled="!ready" @click="choose(selected)" title="Reset example state">Reset</button>
+                <button @click="entries = []; focus()" title="Clear output (Ctrl+L)">Clear</button>
+            </div>
+        </header>
+        <div class="terminal-scroll" x-ref="scroll" tabindex="0" aria-label="Terminal output">
+            <p class="loading" x-show="loading">Loading…</p>
+            <p class="fatal" x-show="fatal" x-text="fatal" x-cloak role="alert"></p>
+            <div class="transcript" role="log" aria-label="Command transcript" aria-live="polite" aria-relevant="additions">
+                <template x-for="entry in entries" :key="entry.id">
+                    <pre :class="entry.kind" x-text="entry.text"></pre>
+                </template>
+            </div>
+        </div>
+        <form class="input-bar" @submit.prevent="submit()" @click.outside="hideSuggestions()">
+            <div class="suggestions" id="path-suggestions" x-ref="suggestions" x-show="suggestionsOpen" x-cloak role="listbox" aria-label="Path suggestions">
+                <template x-for="(path, index) in suggestions" :key="path">
+                    <button type="button" role="option" tabindex="-1" :id="'suggestion-' + index" :data-index="index" :aria-selected="suggestionIndex === index" :class="{ selected: suggestionIndex === index }" @mousedown.prevent @click="acceptSuggestion(index)" x-text="path"></button>
+                </template>
+            </div>
+            <input id="terminal-input" x-ref="input" x-model="line" @input="line = $event.target.value; suggest()" @click="suggest()" @keydown="keydown($event)" @keyup="cursorMoved($event)" @blur="hideSuggestions()" :disabled="!ready" role="combobox" aria-label="Command" aria-autocomplete="list" aria-controls="path-suggestions" :aria-expanded="suggestionsOpen" :aria-activedescendant="suggestionsOpen ? 'suggestion-' + suggestionIndex : null" autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button class="submit" type="submit" :disabled="!ready">Submit</button>
+        </form>
+    </main>
+    <noscript>JavaScript is required.</noscript>
+</body>
+</html>

@@ -1,0 +1,14 @@
+[package]
+name = "cvar-html"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.86"
+publish = false
+
+[lib]
+path = "src/src.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+cvar = { path = "..", default-features = false }
+

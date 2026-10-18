@@ -1,3 +1,13 @@
+[workspace]
+members = ["html"]
+resolver = "3"
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+strip = true
+
 [package]
 name = "cvar"
 version = "0.5.0"
