@@ -253,7 +253,9 @@ fn writable_properties_support_a_shared_lifecycle() {
 	let mut value = Mode::First;
 	let mut borrowed = Property("borrowed", &mut value, &Mode::First);
 	let mut owned = OwnedProp(String::from("owned"), Mode::First, Mode::First);
-	for prop in [&mut borrowed as &mut dyn IProperty, &mut owned] {
+	let mut enum_value = Mode::First;
+	let mut enumerated = EnumProp("enumerated", &mut enum_value, &Mode::First);
+	for prop in [&mut borrowed as &mut dyn IProperty, &mut owned, &mut enumerated] {
 		assert_eq!(prop.state(), PropState::Default);
 		assert_eq!(prop.set("Second", &mut NullContext), Ok(()));
 		assert_eq!(prop.get_value().downcast_ref::<Mode>(), Some(&Mode::Second));

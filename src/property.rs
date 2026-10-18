@@ -53,11 +53,21 @@ pub trait IProperty: INode {
 		any::type_name::<Self>()
 	}
 
-	/// Returns a list of valid value strings for this property.
+	/// Returns suggested value strings in the property's parsing format.
 	///
-	/// None if the question is not relevant, eg. string or number nodes.
+	/// Suggestions do not restrict assignments. `None` means no fixed suggestions.
 	fn values(&self) -> Option<&[&str]> {
 		None
+	}
+
+	/// Appends suggestions starting with the decoded value prefix.
+	///
+	/// Candidates are unquoted value strings, in provider order. The default
+	/// filters [`values`](Self::values) without reading or modifying the value.
+	fn complete(&self, partial: &str, candidates: &mut Vec<String>) {
+		if let Some(values) = self.values() {
+			candidates.extend(values.iter().filter(|value| value.starts_with(partial)).map(|value| (*value).to_owned()));
+		}
 	}
 }
 
@@ -78,43 +88,58 @@ impl fmt::Debug for dyn IProperty + '_ {
 //----------------------------------------------------------------
 
 /// Property node.
-pub struct Property<'a, T: 'static, F = DefaultFormat> {
+pub struct Property<'a, T: 'static, F = DefaultFormat, V = ()> {
 	name: &'a str,
 	variable: &'a mut T,
 	default: &'a T,
 	format: F,
+	values: V,
 }
 
 /// Creates a new Property instance.
 #[allow(non_snake_case)]
 #[inline]
 pub const fn Property<'a, T>(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
-	Property { name, variable, default, format: DefaultFormat }
+	Property { name, variable, default, format: DefaultFormat, values: () }
 }
 
 impl<'a, T> Property<'a, T> {
 	/// Creates a new instance.
 	#[inline]
 	pub const fn new(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T> {
-		Property { name, variable, default, format: DefaultFormat }
+		Property(name, variable, default)
+	}
+
+	#[inline]
+	pub(crate) const fn new_with_values<V: ValuesProvider>(name: &'a str, variable: &'a mut T, default: &'a T, values: V) -> Property<'a, T, DefaultFormat, V> {
+		Property { name, variable, default, format: DefaultFormat, values }
 	}
 }
 
-impl<'a, T, F> Property<'a, T, F> {
+impl<'a, T, F, V: ValuesProvider> Property<'a, T, F, V> {
 	/// Sets how the value is displayed and parsed, preserving its concrete type.
 	#[inline]
-	pub fn with_format<G>(self, format: G) -> Property<'a, T, G> {
-		Property { name: self.name, variable: self.variable, default: self.default, format }
+	pub fn with_format<G>(self, format: G) -> Property<'a, T, G, V> {
+		Property { name: self.name, variable: self.variable, default: self.default, format, values: self.values }
+	}
+
+	/// Supplies value suggestions.
+	///
+	/// Use `()` for no suggestions, or a slice or array reference for fixed choices.
+	/// When using a custom format, supply suggestions matching that format.
+	#[inline]
+	pub fn with_values<W: ValuesProvider>(self, values: W) -> Property<'a, T, F, W> {
+		Property { name: self.name, variable: self.variable, default: self.default, format: self.format, values }
 	}
 }
 
-impl<T, F: ValueDisplay<T>> fmt::Display for Property<'_, T, F> {
+impl<T, F: ValueDisplay<T>, V: ValuesProvider> fmt::Display for Property<'_, T, F, V> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		self.format.fmt(self.variable, f)
 	}
 }
 
-impl<'a, T, F> INode for Property<'a, T, F>
+impl<'a, T, F, V: ValuesProvider> INode for Property<'a, T, F, V>
 	where T: Clone + PartialEq + IValue,
 	      F: ValueDisplay<T> + ValueFromStr<T>
 {
@@ -127,10 +152,14 @@ impl<'a, T, F> INode for Property<'a, T, F>
 	}
 }
 
-impl<'a, T, F> IProperty for Property<'a, T, F>
+impl<'a, T, F, V: ValuesProvider> IProperty for Property<'a, T, F, V>
 	where T: Clone + PartialEq + IValue,
 	      F: ValueDisplay<T> + ValueFromStr<T>
 {
+	fn values(&self) -> Option<&[&str]> {
+		self.values.values()
+	}
+
 	fn get_value(&self) -> &dyn IValue {
 		&*self.variable
 	}
@@ -323,43 +352,53 @@ impl<'a, T, F> IProperty for ClampedProp<'a, T, F>
 //----------------------------------------------------------------
 
 /// Read-only property node.
-pub struct ReadOnlyProp<'a, T: 'static, F = DefaultFormat> {
+pub struct ReadOnlyProp<'a, T: 'static, F = DefaultFormat, V = ()> {
 	name: &'a str,
 	variable: &'a T,
 	default: &'a T,
 	format: F,
+	values: V,
 }
 
 /// Creates a new ReadOnlyProp instance.
 #[allow(non_snake_case)]
 #[inline]
 pub const fn ReadOnlyProp<'a, T>(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
-	ReadOnlyProp { name, variable, default, format: DefaultFormat }
+	ReadOnlyProp { name, variable, default, format: DefaultFormat, values: () }
 }
 
 impl<'a, T> ReadOnlyProp<'a, T> {
 	/// Creates a new instance.
 	#[inline]
 	pub const fn new(name: &'a str, variable: &'a T, default: &'a T) -> ReadOnlyProp<'a, T> {
-		ReadOnlyProp { name, variable, default, format: DefaultFormat }
+		ReadOnlyProp(name, variable, default)
 	}
 }
 
-impl<'a, T, F> ReadOnlyProp<'a, T, F> {
+impl<'a, T, F, V: ValuesProvider> ReadOnlyProp<'a, T, F, V> {
 	/// Sets how the value is displayed, preserving its concrete type.
 	#[inline]
-	pub fn with_format<G>(self, format: G) -> ReadOnlyProp<'a, T, G> {
-		ReadOnlyProp { name: self.name, variable: self.variable, default: self.default, format }
+	pub fn with_format<G>(self, format: G) -> ReadOnlyProp<'a, T, G, V> {
+		ReadOnlyProp { name: self.name, variable: self.variable, default: self.default, format, values: self.values }
+	}
+
+	/// Supplies value suggestions.
+	///
+	/// Use `()` for no suggestions, or a slice or array reference for fixed choices.
+	/// When using a custom format, supply suggestions matching that format.
+	#[inline]
+	pub fn with_values<W: ValuesProvider>(self, values: W) -> ReadOnlyProp<'a, T, F, W> {
+		ReadOnlyProp { name: self.name, variable: self.variable, default: self.default, format: self.format, values }
 	}
 }
 
-impl<T, F: ValueDisplay<T>> fmt::Display for ReadOnlyProp<'_, T, F> {
+impl<T, F: ValueDisplay<T>, V: ValuesProvider> fmt::Display for ReadOnlyProp<'_, T, F, V> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		self.format.fmt(self.variable, f)
 	}
 }
 
-impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>> INode for ReadOnlyProp<'a, T, F> {
+impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>, V: ValuesProvider> INode for ReadOnlyProp<'a, T, F, V> {
 	fn name(&self) -> &str {
 		self.name
 	}
@@ -369,7 +408,11 @@ impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>> INode for ReadOnlyProp<'a, T
 	}
 }
 
-impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>> IProperty for ReadOnlyProp<'a, T, F> {
+impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>, V: ValuesProvider> IProperty for ReadOnlyProp<'a, T, F, V> {
+	fn values(&self) -> Option<&[&str]> {
+		self.values.values()
+	}
+
 	fn get_value(&self) -> &dyn IValue {
 		self.variable
 	}
@@ -409,43 +452,53 @@ impl<'a, T: PartialEq + IValue, F: ValueDisplay<T>> IProperty for ReadOnlyProp<'
 
 /// Property node which owns its variable.
 #[non_exhaustive]
-pub struct OwnedProp<T: 'static, F = DefaultFormat> {
+pub struct OwnedProp<T: 'static, F = DefaultFormat, V = ()> {
 	pub name: String,
 	pub variable: T,
 	pub default: T,
 	format: F,
+	values: V,
 }
 
 /// Creates a new OwnedProp instance.
 #[allow(non_snake_case)]
 #[inline]
 pub const fn OwnedProp<T>(name: String, variable: T, default: T) -> OwnedProp<T> {
-	OwnedProp { name, variable, default, format: DefaultFormat }
+	OwnedProp { name, variable, default, format: DefaultFormat, values: () }
 }
 
 impl<T> OwnedProp<T> {
 	/// Creates a new instance.
 	#[inline]
 	pub const fn new(name: String, variable: T, default: T) -> OwnedProp<T> {
-		OwnedProp { name, variable, default, format: DefaultFormat }
+		OwnedProp(name, variable, default)
 	}
 }
 
-impl<T, F> OwnedProp<T, F> {
+impl<T, F, V: ValuesProvider> OwnedProp<T, F, V> {
 	/// Sets how the value is displayed and parsed, preserving its concrete type.
 	#[inline]
-	pub fn with_format<G>(self, format: G) -> OwnedProp<T, G> {
-		OwnedProp { name: self.name, variable: self.variable, default: self.default, format }
+	pub fn with_format<G>(self, format: G) -> OwnedProp<T, G, V> {
+		OwnedProp { name: self.name, variable: self.variable, default: self.default, format, values: self.values }
+	}
+
+	/// Supplies value suggestions.
+	///
+	/// Use `()` for no suggestions, or a slice or array reference for fixed choices.
+	/// When using a custom format, supply suggestions matching that format.
+	#[inline]
+	pub fn with_values<W: ValuesProvider>(self, values: W) -> OwnedProp<T, F, W> {
+		OwnedProp { name: self.name, variable: self.variable, default: self.default, format: self.format, values }
 	}
 }
 
-impl<T, F: ValueDisplay<T>> fmt::Display for OwnedProp<T, F> {
+impl<T, F: ValueDisplay<T>, V: ValuesProvider> fmt::Display for OwnedProp<T, F, V> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		self.format.fmt(&self.variable, f)
 	}
 }
 
-impl<T, F> INode for OwnedProp<T, F>
+impl<T, F, V: ValuesProvider> INode for OwnedProp<T, F, V>
 	where T: Clone + PartialEq + IValue,
 	      F: ValueDisplay<T> + ValueFromStr<T>
 {
@@ -458,10 +511,14 @@ impl<T, F> INode for OwnedProp<T, F>
 	}
 }
 
-impl<T, F> IProperty for OwnedProp<T, F>
+impl<T, F, V: ValuesProvider> IProperty for OwnedProp<T, F, V>
 	where T: Clone + PartialEq + IValue,
 	      F: ValueDisplay<T> + ValueFromStr<T>
 {
+	fn values(&self) -> Option<&[&str]> {
+		self.values.values()
+	}
+
 	fn get_value(&self) -> &dyn IValue {
 		&self.variable
 	}

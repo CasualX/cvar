@@ -102,7 +102,13 @@ pub unsafe extern "C" fn execute(ptr: *const u8, len: usize) {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn complete(ptr: *const u8, len: usize) {
 	respond(unsafe { input(ptr, len) }.map(|partial| STATE.with(|state| {
-		let mut paths = cvar::repl::paths(state.borrow_mut().visitor(), partial);
+		let mut tokens = cvar::repl::parse::split(partial);
+		let path = tokens.next().unwrap_or("");
+		let mut state = state.borrow_mut();
+		let mut paths = match tokens.remainder() {
+			Some(args) => cvar::repl::values(state.visitor(), path, args.trim_ascii_start()),
+			None => cvar::repl::paths(state.visitor(), path),
+		};
 		let mut unique = Vec::new();
 		for path in paths.drain(..) {
 			if !unique.contains(&path) { unique.push(path); }

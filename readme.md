@@ -148,11 +148,6 @@ The _nodes_ are ephemeral, this means that they don't store their metadata next 
 
 While generic implementations are provided, each node type is a trait and can have custom implementations.
 
-Future work
------------
-
-Implement autocomplete for identifiers and suggestions for property values and actions.
-
 License
 -------
 

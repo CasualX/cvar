@@ -17,6 +17,14 @@ impl fmt::Display for ParseStringError {
 
 impl error::Error for ParseStringError {}
 
+/// Returns whether a value should be quoted as a command argument.
+///
+/// Empty strings and strings containing whitespace, control characters, double
+/// quotes, or backslashes should use string [`Debug`](fmt::Debug) formatting.
+pub fn needs_quotes(input: &str) -> bool {
+	input.is_empty() || input.chars().any(|c| c.is_whitespace() || c.is_control() || c == '"' || c == '\\')
+}
+
 /// Decodes a double-quoted string, or returns unquoted input unchanged.
 ///
 /// Supports the escapes emitted by string [`Debug`](fmt::Debug) formatting:

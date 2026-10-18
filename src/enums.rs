@@ -1,5 +1,73 @@
 use super::*;
 
+/// Types with a fixed set of suggested strings in their ordinary parsing format.
+///
+/// Implemented for `bool` and enums declared with [`enum_string!`]. Custom enums
+/// can implement this trait to use [`EnumProp`] without changing their parser.
+pub trait EnumString {
+	/// Suggested strings in declaration order.
+	const VALUES: &'static [&'static str];
+}
+
+impl EnumString for bool {
+	const VALUES: &'static [&'static str] = &["false", "true"];
+}
+
+/// A zero-sized provider for a type's [`EnumString::VALUES`].
+///
+/// Used automatically by [`EnumProp`] and [`BoolProp`]. Pass
+/// `EnumValues::<T>::new()` to a property's `with_values` method to use the same
+/// suggestions on [`ReadOnlyProp`] or [`OwnedProp`]. No value of `T` is stored.
+pub struct EnumValues<T>(core::marker::PhantomData<fn() -> T>);
+
+impl<T> EnumValues<T> {
+	/// Creates the marker without storing a value or a reference.
+	#[inline]
+	pub const fn new() -> EnumValues<T> {
+		EnumValues(core::marker::PhantomData)
+	}
+}
+
+impl<T> Default for EnumValues<T> {
+	fn default() -> EnumValues<T> {
+		EnumValues::new()
+	}
+}
+
+impl<T: EnumString> ValuesProvider for EnumValues<T> {
+	fn values(&self) -> Option<&[&str]> {
+		Some(T::VALUES)
+	}
+}
+
+/// Creates an ordinary [`Property`] with the type's fixed value suggestions.
+///
+/// ```
+/// use cvar::{EnumProp, IProperty};
+/// cvar::enum_string! {
+/// 	#[derive(Clone, PartialEq)]
+/// 	enum Mode { First, Second }
+/// }
+/// let mut mode = Mode::First;
+/// let prop = EnumProp("mode", &mut mode, &Mode::First);
+/// assert_eq!(prop.values(), Some(&["First", "Second"][..]));
+/// ```
+///
+/// Suggestions do not restrict assignments. With custom formatting, override the
+/// suggestions using [`Property::with_values`] to match the format's parser.
+#[allow(non_snake_case)]
+#[inline]
+pub const fn EnumProp<'a, T: EnumString + 'static>(name: &'a str, variable: &'a mut T, default: &'a T) -> Property<'a, T, DefaultFormat, EnumValues<T>> {
+	Property::new_with_values(name, variable, default, EnumValues::new())
+}
+
+/// Creates an ordinary [`Property`] suggesting `false` and `true`.
+#[allow(non_snake_case)]
+#[inline]
+pub const fn BoolProp<'a>(name: &'a str, variable: &'a mut bool, default: &'a bool) -> Property<'a, bool, DefaultFormat, EnumValues<bool>> {
+	EnumProp(name, variable, default)
+}
+
 /// Error type for parsing enum variants from strings.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParseEnumError {
@@ -16,7 +84,8 @@ impl error::Error for ParseEnumError {}
 
 /// Macro to create enums that can be converted to and from strings.
 ///
-/// Implements `Display` and `FromStr` for the enum, allowing it to be used as a cvar property.
+/// Implements `Display`, `FromStr`, and [`EnumString`] for the enum.
+/// Use [`EnumProp`] to register the generated variant suggestions.
 ///
 /// ```
 /// cvar::enum_string! {
@@ -35,7 +104,7 @@ impl error::Error for ParseEnumError {}
 ///
 /// impl cvar::IVisit for Config {
 /// 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-/// 		f(&mut cvar::Property("mode", &mut self.mode, &TestEnum::First));
+/// 		f(&mut cvar::EnumProp("mode", &mut self.mode, &TestEnum::First));
 /// 	}
 /// }
 ///
@@ -89,6 +158,10 @@ macro_rules! enum_string {
 			fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
 				f.write_str(self.as_str())
 			}
+		}
+
+		impl $crate::EnumString for $name {
+			const VALUES: &'static [&'static str] = &[$(::core::stringify!($variant)),*];
 		}
 
 		impl ::core::str::FromStr for $name {

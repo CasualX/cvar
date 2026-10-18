@@ -73,7 +73,8 @@ const EXAMPLES = [
     {
         file: "nesting-techniques.rs",
         intro: 'Hit Enter to list all the cvars and their values.\n'
-            + 'Assign with <name> <value>, e.g. foo.int 42.\n',
+            + 'Assign with <name> <value>, e.g. foo.int 42.\n'
+            + 'Try foo.bool or foo.mode followed by a space for value suggestions.\n',
     },
     {
         file: "runtime-properties.rs",
@@ -118,6 +119,7 @@ document.addEventListener("alpine:init", () => {
         examples: EXAMPLES, selected: 0, ready: false, loading: true,
         fatal: "", line: "", entries: [], history: [], historyIndex: 0, draft: "", nextId: 0,
         suggestions: [], suggestionsOpen: false, suggestionIndex: 0, suggestionStart: 0, suggestionEnd: 0,
+        completingValue: false,
 
         async init() {
             stopViewport = fitConsoleViewport();
@@ -191,14 +193,22 @@ document.addEventListener("alpine:init", () => {
             if (cursor !== input.selectionEnd) return;
             const before = this.line.slice(0, cursor);
             const partial = before.replace(/^[\t\n\v\f\r ]+/, "");
-            if ((!partial && !includeEmpty) || /[\t\n\v\f\r ]/.test(partial)) return;
+            if (!partial && !includeEmpty) return;
             try {
                 this.suggestions = bridge.call("complete", partial).sort();
                 this.suggestionStart = before.length - partial.length;
-                // Replace the whole path token, even when the cursor is inside it.
-                const tail = this.line.slice(cursor);
-                const tokenEnd = tail.search(/[\t\n\v\f\r ]/);
-                this.suggestionEnd = tokenEnd < 0 ? this.line.length : cursor + tokenEnd;
+                const separator = partial.search(/[\t\n\v\f\r ]/);
+                this.completingValue = separator >= 0;
+                if (this.completingValue) {
+                    const args = partial.slice(separator);
+                    this.suggestionStart += separator + args.length - args.replace(/^[\t\n\v\f\r ]+/, "").length;
+                    // Value candidates replace the whole argument, including quoted spaces.
+                    this.suggestionEnd = this.line.length;
+                } else {
+                    const tail = this.line.slice(cursor);
+                    const tokenEnd = tail.search(/[\t\n\v\f\r ]/);
+                    this.suggestionEnd = tokenEnd < 0 ? this.line.length : cursor + tokenEnd;
+                }
                 this.suggestionsOpen = this.suggestions.length > 0;
                 this.scrollSuggestion();
             } catch (error) { this.append("error", error.message); }
@@ -225,7 +235,7 @@ document.addEventListener("alpine:init", () => {
         acceptSuggestion(index = this.suggestionIndex) {
             const path = this.suggestions[index];
             if (path === undefined) return;
-            const replacement = path.endsWith("…") ? path.slice(0, -1) + "." : path;
+            const replacement = !this.completingValue && path.endsWith("…") ? path.slice(0, -1) + "." : path;
             this.line = this.line.slice(0, this.suggestionStart) + replacement + this.line.slice(this.suggestionEnd);
             const position = this.suggestionStart + replacement.length;
             this.hideSuggestions();

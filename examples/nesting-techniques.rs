@@ -1,10 +1,21 @@
 //! This example demonstrates more complex nesting techniques.
 
+cvar::enum_string! {
+	#[derive(Clone, Default, PartialEq)]
+	enum Mode {
+		#[default]
+		Normal,
+		Fast,
+		Slow,
+	}
+}
+
 #[derive(Default)]
 struct Foo {
 	int: i32,
 	float: f32,
 	string: String,
+	mode: Mode,
 }
 
 // Demonstrate how to create pseudo 'on change' callbacks by aliasing the properties as actions
@@ -29,6 +40,7 @@ impl cvar::IVisit for Foo {
 		f(&mut cvar::Property("float", &mut self.float, &0.0));
 		f(&mut cvar::OnChange("float", |args, context| self.after_float_changed(args, context)));
 		f(&mut cvar::Property("string", &mut self.string, &String::new()));
+		f(&mut cvar::EnumProp("mode", &mut self.mode, &Mode::Normal));
 	}
 }
 
@@ -42,7 +54,7 @@ struct Nested {
 
 impl cvar::IVisit for Nested {
 	fn visit(&mut self, f: &mut dyn FnMut(&mut dyn cvar::INode)) {
-		f(&mut cvar::Property("foo.bool", &mut self.boolean, &false));
+		f(&mut cvar::BoolProp("foo.bool", &mut self.boolean, &false));
 		f(&mut cvar::List("foo", &mut self.foo));
 	}
 }

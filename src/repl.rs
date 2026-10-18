@@ -27,6 +27,35 @@ pub fn paths(root: &mut dyn IVisit, partial: &str) -> Vec<String> {
 	candidates
 }
 
+/// Suggests property values at the exact path as replacement argument strings.
+///
+/// Matching is case-sensitive; provider order and duplicates are preserved.
+/// Actions and lists are skipped, and properties are never assigned.
+/// Accepts an unquoted prefix or an unfinished double-quoted string. Suggestions
+/// needing escaping are quoted for [`poke`]; explicitly quoted input stays quoted.
+/// Invalid or incomplete escape sequences return no suggestions.
+pub fn values(root: &mut dyn IVisit, path: &str, partial: &str) -> Vec<String> {
+	let decoded = match parse::string(partial) {
+		Ok(value) => value.into_owned(),
+		Err(_) => match parse::string(&format!("{partial}\"")) {
+			Ok(value) => value.into_owned(),
+			Err(_) => return Vec::new(),
+		},
+	};
+	let mut candidates = Vec::new();
+	find(root, path, |node| {
+		if let Node::Prop(prop) = node.as_node() {
+			prop.complete(&decoded, &mut candidates);
+		}
+	});
+	for value in &mut candidates {
+		if partial.starts_with('"') || parse::needs_quotes(value) {
+			*value = format!("{value:?}");
+		}
+	}
+	candidates
+}
+
 /// Pokes the cvar tree.
 ///
 /// This function combines the behavior of [`print()`], [`get`], [`set`], and [`invoke`].
